@@ -17,4 +17,6 @@ export const permissionsArray = [
   "assignments:write",
   "roles:read",
   "roles:write",
-];
+] as const;
+
+export type Permission = typeof permissionsArray[number];

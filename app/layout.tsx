@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SideBar from "@/components/navigation/sidebar/sidebar";
 import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./_providers/auth-provider";
 import { CXThemeProvider } from "./_providers/theme-provider";
 
 const geistSans = Geist({
@@ -31,10 +32,12 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex">
-        <CXThemeProvider
-        >{<SideBar />}
-          {children}
+      <body className="min-h-full min-w-full flex">
+        <CXThemeProvider>
+          <AuthProvider>
+            <SideBar />
+            {children}
+          </AuthProvider>
         </CXThemeProvider>
         </body>
     </html>

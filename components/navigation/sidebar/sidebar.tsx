@@ -1,37 +1,59 @@
 "use client"
-import { AtSign, BrainCircuit, Building, ChartColumn, Form, UserRound, Workflow } from "lucide-react";
+import { AtSign, BrainCircuit, Building, ChartColumn, Form, LogOut, UserCog, UserLock, UserRound, UserStar, Workflow } from "lucide-react";
+import { AuthService } from "@/services/auth/auth";
 import Link from "next/link";
+import { useAuth } from "@/app/_providers/auth-provider";
 import { ThemeToggle } from "../../theme-toggle/theme";
 
 type icon = React.ReactNode;
 type NavItem =
-    | { label: string; href: string; children?: never; icon?: icon }
-    | { label: string; href?: never; children: { label: string; href: string; icon?: icon }[]; icon?: icon };
+    | { label: string; href: string; children?: never; icon?: icon; permission: string }
+    | { label: string; href?: never; permission?: string; children: { label: string; href: string; icon?: icon }[]; icon?: icon };
 
 const navItems: NavItem[] = [
     {
         label: "Form",
         icon: <Form />,
-        children: [
-            { label: "View", href: "/form" },
-            { label: "Create", href: "/form" },
-        ],
+        href: "/form",
+        permission: "forms",
+        // children: [
+        //     { label: "View", href: "/form" },
+        //     { label: "Create", href: "/form" },
+        // ],
     },
-    { label: "Mentions", href: "/mentions", icon: <AtSign /> },
-    { label: "Visualisation", href: "/visualisation", icon: <ChartColumn /> },
+    { label: "Mentions", permission: "mentions", href: "/mentions", icon: <AtSign /> },
+    { label: "Visualisation", permission: "visualisation", href: "/visualisation", icon: <ChartColumn /> },
     {
         label: "Workflow",
         icon: <Workflow />,
-        children: [
-            { label: "Existing", href: "/workflow/existing" },
-            { label: "Create", href: "/workflow/create" },
-        ],
+        href: "/workflow",
+        permission: "workflows",
+        // children: [
+        //     { label: "Existing", href: "/workflow/existing" },
+        //     { label: "Create", href: "/workflow/create" },
+        // ],
     },
-    { label: "Vision Intelligence", href: "/vision-intelligence", icon: <BrainCircuit /> },
-    { label: "Organisation", href: "/organisation", icon: <Building /> },
+    { label: "Vision Intelligence", permission: "vision-intelligence", href: "/vision-intelligence", icon: <BrainCircuit /> },
+    { label: "Organisation", permission: "organisations", href: "/organisation", icon: <Building /> },
+    { label: "Customers", permission: "customers", href: "/customers", icon: <UserStar /> },
+    { label: "Employees", permission: "employees", href: "/employees", icon: <UserCog /> },
+    { label: "Roles", permission: "roles", href: "/roles-and-permissions", icon: <UserLock /> },
 ];
 
+const authService = new AuthService();
+
 export default function SideBar() {
+    const { permissions, isAdmin, user, loading, clearAuth } = useAuth();
+
+    const hasPermission = (permission: string) =>
+        isAdmin || Object.keys(permissions).some(k => k.startsWith(permission + ':'));
+
+    async function handleLogout() {
+        await authService.logout();
+        clearAuth();
+    }
+
+    
     return (
         <div className="flex h-screen flex-col justify-between border-e border-border bg-background text-foreground max-w-xs">
             <div className="px-1 sm:px-4 py-3 sm:py-6 flex flex-col justify-center items-center">
@@ -42,8 +64,8 @@ export default function SideBar() {
                 </Link>
                 <ThemeToggle />
 
-                <ul className="mt-6 space-y-1">
-                    {navItems.map((item) =>
+                {!loading && user?.id && (<ul className="mt-6 space-y-1">
+                    {navItems.filter(item => !item.permission || hasPermission(item.permission)).map((item) =>
                         item.children ? (
                             <li key={item.label}>
                                 <details className="group [&_summary::-webkit-details-marker]:hidden">
@@ -74,6 +96,7 @@ export default function SideBar() {
                             <li key={item.label}>
                                 <Link
                                     href={item.href}
+                                    title={item.label}
                                     className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2"
                                 >
                                     {item.icon} <span className="hidden sm:inline">{item.label}</span>
@@ -81,24 +104,37 @@ export default function SideBar() {
                             </li>
                         )
                     )}
-                </ul>
+                </ul>)}
+                {!loading && user?.id && (
+                <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
+                    <ul className="space-y-1">
+                        <li>
+                            <button onClick={handleLogout} className="w-full block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2 text-destructive">
+                                <LogOut /> <span className="hidden sm:inline">Logout</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                )}
+                {!loading && !user?.id && (
+                <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
+                    <ul className="space-y-1">
+                        <li>
+                            <Link href="/login" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
+                                <UserRound /> <span className="hidden sm:inline">Login</span>
+                            </Link>
+                        </li>
+                        <li>
+                            <Link href="/register" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
+                                <UserRound /> <span className="hidden sm:inline">Register</span>
+                            </Link>
+                        </li>
+                    </ul>
+                </div>
+            )}
             </div>
 
-            {/* <div className="sticky inset-x-0 bottom-0 border-t border-gray-100">
-                <Link href="#" className="flex items-center gap-2 bg-white p-4 hover:bg-gray-50">
-                    <img
-                        alt=""
-                        src="https://images.unsplash.com/photo-1600486913747-55e5470d6f40?auto=format&fit=crop&q=80&w=1160"
-                        className="size-10 rounded-full object-cover"
-                    />
-                    <div>
-                        <p className="text-xs">
-                            <strong className="block font-medium">Eric Frusciante</strong>
-                            <span>eric@frusciante.com</span>
-                        </p>
-                    </div>
-                </Link>
-            </div> */}
+            
         </div>
     );
 }
