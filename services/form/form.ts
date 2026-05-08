@@ -1,4 +1,5 @@
 import { HttpService } from "../http";
+import type { Page } from "@/dto/common/page";
 import type {
   FormCreatePayload,
   FormRead,
@@ -24,7 +25,7 @@ export class FormService extends HttpService {
           )
           .join("&")
       : "";
-    return this.get<FormSummary[]>(`/forms${query}`);
+    return this.get<Page<FormSummary>>(`/forms${query}`);
   }
 
   async getById(id: number) {

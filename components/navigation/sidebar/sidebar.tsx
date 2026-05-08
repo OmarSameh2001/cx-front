@@ -1,5 +1,5 @@
 "use client"
-import { AtSign, BrainCircuit, Building, ChartColumn, Form, LogOut, UserCog, UserLock, UserRound, UserStar, Workflow } from "lucide-react";
+import { AtSign, BrainCircuit, Building, ChartColumn, Form, LogOut, UserCog, UserLock, UserRound, UserRoundCheck, UserRoundPlus, UserStar, Workflow } from "lucide-react";
 import { AuthService } from "@/services/auth/auth";
 import Link from "next/link";
 import { useAuth } from "@/app/_providers/auth-provider";
@@ -121,12 +121,12 @@ export default function SideBar() {
                     <ul className="space-y-1">
                         <li>
                             <Link href="/login" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
-                                <UserRound /> <span className="hidden sm:inline">Login</span>
+                                <UserRoundCheck /> <span className="hidden sm:inline">Login</span>
                             </Link>
                         </li>
                         <li>
                             <Link href="/register" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
-                                <UserRound /> <span className="hidden sm:inline">Register</span>
+                                <UserRoundPlus /> <span className="hidden sm:inline">Register</span>
                             </Link>
                         </li>
                     </ul>

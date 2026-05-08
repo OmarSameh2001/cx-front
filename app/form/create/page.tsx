@@ -25,7 +25,7 @@ import type {
   FormFieldCreatePayload,
   SubmitterType,
 } from "@/dto/form/form";
-import type { UnitLookup } from "@/dto/lookup/lookup";
+import type { LookupResult } from "@/dto/lookup/lookup";
 import { FormService } from "@/services/form/form";
 import { LookupService } from "@/services/lookup/lookup";
 
@@ -58,7 +58,7 @@ export default function FormCreatePage() {
   const [submitterType, setSubmitterType] = useState<SubmitterType[]>([
     "employee",
   ]);
-  const [selectedUnits, setSelectedUnits] = useState<UnitLookup[]>([]);
+  const [selectedUnits, setSelectedUnits] = useState<LookupResult[]>([]);
   const hasUnits = selectedUnits.length > 0;
 
   useEffect(() => {
@@ -297,12 +297,12 @@ function UnitsMultiSelect({
   value,
   onChange,
 }: {
-  value: UnitLookup[];
-  onChange: (next: UnitLookup[]) => void;
+  value: LookupResult[];
+  onChange: (next: LookupResult[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [results, setResults] = useState<UnitLookup[]>([]);
+  const [results, setResults] = useState<LookupResult[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -330,7 +330,7 @@ function UnitsMultiSelect({
     [value]
   );
 
-  const toggle = (unit: UnitLookup) => {
+  const toggle = (unit: LookupResult) => {
     if (selectedIds.has(unit.id)) {
       onChange(value.filter((u) => u.id !== unit.id));
     } else {

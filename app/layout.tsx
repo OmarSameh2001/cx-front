@@ -5,6 +5,7 @@ import SideBar from "@/components/navigation/sidebar/sidebar";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "./_providers/auth-provider";
 import { CXThemeProvider } from "./_providers/theme-provider";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
     >
       <body className="min-h-full min-w-full flex">
         <CXThemeProvider>
+          <Toaster position="top-right" reverseOrder={false} />
           <AuthProvider>
             <SideBar />
             {children}

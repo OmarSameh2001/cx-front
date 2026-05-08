@@ -57,6 +57,7 @@ export class HttpService {
 
     // Serialize body and inject Content-Type only when a body is present.
     const init: RequestInit & { next?: RequestOptions["next"] } = {
+      credentials: "include",
       ...rest,
       ...(body !== undefined && {
         body: JSON.stringify(body),
