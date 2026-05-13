@@ -7,6 +7,7 @@ import { useAuth } from "@/app/_providers/auth-provider";
 import { AuthService } from "@/services/auth/auth";
 import { AuthValidator } from "@/utils/validator/auth";
 import { useState } from "react";
+import { showErrorToast, showSuccessToast } from "@/utils/toaster/toaster";
 
 const authService = new AuthService();
 
@@ -27,6 +28,7 @@ export default function LoginForm() {
         setEmailError(eErr);
         setPasswordError(pErr);
 
+        if (eErr || pErr) showErrorToast('Please fix input error and try again');
         if (eErr || pErr) return;
 
         setServerError(undefined);
@@ -35,8 +37,10 @@ export default function LoginForm() {
             const response = await authService.employeeLogin(email, password);
             const { permissions, ...user } = response.user;
             const permissionsMap = Object.fromEntries(permissions.map(p => [p, true])) as Record<string, true>;
+            showSuccessToast('Welcome Back!')
             setAuth(permissionsMap, user);
         } catch {
+            showErrorToast('Invalid credentials. Please try again.')
             setServerError('Invalid credentials. Please try again.');
         }
     }

@@ -81,7 +81,7 @@ export default function Pagination({
   const pageNumbers = getPageNumbers();
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-neutral-900 border-t border-gray-200 dark:border-neutral-700 sm:px-6">
+    <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border sm:px-6">
       {/* Mobile view */}
       <div className="flex flex-1 flex-wrap justify-between sm:hidden">
         <button
@@ -89,8 +89,8 @@ export default function Pagination({
           disabled={!hasPrevPage}
           className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md h-fit ${
             hasPrevPage
-              ? "bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-700 border border-gray-300 dark:border-neutral-600"
-              : "bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500 cursor-not-allowed border border-gray-200 dark:border-neutral-700"
+              ? "bg-card text-foreground hover:bg-accent hover:text-accent-foreground border border-input"
+              : "bg-muted text-muted-foreground cursor-not-allowed border border-border"
           }`}
         >
           Previous
@@ -98,7 +98,7 @@ export default function Pagination({
         <div className="flex items-center sm:flex-row flex-col gap-2">
           <label
             htmlFor="items-per-page"
-            className="text-sm text-gray-700 dark:text-gray-300"
+            className="text-sm text-foreground"
           >
             Show:
           </label>
@@ -106,7 +106,7 @@ export default function Pagination({
             id="items-per-page"
             value={itemsPerPage}
             onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-            className="px-2 py-1 text-sm border border-gray-300 dark:border-neutral-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200"
+            className="px-2 py-1 text-sm border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-card text-foreground"
           >
             {itemsPerPageOptions.map((option) => (
               <option key={option} value={option}>
@@ -114,7 +114,7 @@ export default function Pagination({
               </option>
             ))}
           </select>
-          <span className="text-sm text-gray-700 dark:text-gray-300">
+          <span className="text-sm text-foreground">
             per page
           </span>
         </div>
@@ -123,8 +123,8 @@ export default function Pagination({
           disabled={!hasNextPage}
           className={`relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium rounded-md h-fit ${
             hasNextPage
-              ? "bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-700 border border-gray-300 dark:border-neutral-600"
-              : "bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-neutral-500 cursor-not-allowed border border-gray-200 dark:border-neutral-700"
+              ? "bg-card text-foreground hover:bg-accent hover:text-accent-foreground border border-input"
+              : "bg-muted text-muted-foreground cursor-not-allowed border border-border"
           }`}
         >
           Next
@@ -134,7 +134,7 @@ export default function Pagination({
       {/* Desktop view */}
       <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <p className="text-sm text-gray-700 dark:text-gray-300">
+          <p className="text-sm text-foreground">
             Page <span className="font-medium">{currentPage}</span> of{" "}
             <span className="font-medium">{validTotalPages}</span>
           </p>
@@ -143,7 +143,7 @@ export default function Pagination({
           <div className="flex items-center gap-2">
             <label
               htmlFor="items-per-page"
-              className="text-sm text-gray-700 dark:text-gray-300"
+              className="text-sm text-foreground"
             >
               Show:
             </label>
@@ -151,7 +151,7 @@ export default function Pagination({
               id="items-per-page"
               value={itemsPerPage}
               onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-              className="px-2 py-1 text-sm border border-gray-300 dark:border-neutral-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-neutral-800 text-gray-700 dark:text-gray-200"
+              className="px-2 py-1 text-sm border border-input rounded focus:outline-none focus:ring-1 focus:ring-ring bg-card text-foreground"
             >
               {itemsPerPageOptions.map((option) => (
                 <option key={option} value={option}>
@@ -173,9 +173,9 @@ export default function Pagination({
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={!hasPrevPage}
-              className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 dark:ring-neutral-600 focus:z-20 focus:outline-offset-0 ${
+              className={`relative inline-flex items-center rounded-l-md px-2 py-2 text-muted-foreground ring-1 ring-inset ring-input focus:z-20 focus:outline-offset-0 ${
                 hasPrevPage
-                  ? "hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  ? "hover:bg-accent hover:text-accent-foreground"
                   : "cursor-not-allowed opacity-50"
               }`}
             >
@@ -195,7 +195,7 @@ export default function Pagination({
                 return (
                   <span
                     key={`ellipsis-${index}`}
-                    className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 ring-1 ring-inset ring-gray-300 dark:ring-neutral-600 focus:outline-offset-0"
+                    className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-foreground ring-1 ring-inset ring-input focus:outline-offset-0"
                   >
                     ...
                   </span>
@@ -211,8 +211,8 @@ export default function Pagination({
                   onClick={() => handlePageChange(pageNum)}
                   className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
                     isActive
-                      ? "z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                      : "text-gray-900 dark:text-gray-200 ring-1 ring-inset ring-gray-300 dark:ring-neutral-600 hover:bg-gray-50 dark:hover:bg-neutral-800 focus:z-20 focus:outline-offset-0"
+                      ? "z-10 bg-primary text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      : "text-foreground ring-1 ring-inset ring-input hover:bg-accent hover:text-accent-foreground focus:z-20 focus:outline-offset-0"
                   }`}
                 >
                   {pageNum}
@@ -224,9 +224,9 @@ export default function Pagination({
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={!hasNextPage}
-              className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 dark:ring-neutral-600 focus:z-20 focus:outline-offset-0 ${
+              className={`relative inline-flex items-center rounded-r-md px-2 py-2 text-muted-foreground ring-1 ring-inset ring-input focus:z-20 focus:outline-offset-0 ${
                 hasNextPage
-                  ? "hover:bg-gray-50 dark:hover:bg-neutral-800"
+                  ? "hover:bg-accent hover:text-accent-foreground"
                   : "cursor-not-allowed opacity-50"
               }`}
             >

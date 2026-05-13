@@ -38,12 +38,18 @@ export class HttpService {
   }
 
   /**
-   * Override in a subclass to implement token refresh.
    * Called once when a 401 is received; the original request is retried afterward.
-   * Throw here to propagate the 401 instead of retrying.
+   * Posts to /auth/refresh so the backend can rotate the access cookie.
+   * Throws if refresh fails so the original 401 propagates.
    */
   protected async onUnauthorized(): Promise<void> {
-    throw new Error("401 Unauthorized — override onUnauthorized() to handle token refresh");
+    const res = await fetch(`${this.baseUrl}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      throw new Error(`Refresh failed: ${res.status} ${res.statusText}`);
+    }
   }
 
   protected async fetch<T>(
@@ -90,6 +96,11 @@ export class HttpService {
 
       if (!res.ok) {
         lastError = new Error(`${res.status} ${res.statusText} — ${url}`);
+
+        // 403 is a permission decision, not a transient failure — don't retry.
+        if (res.status === 403) {
+          throw lastError;
+        }
 
         // Don't wait after the last attempt.
         if (attempt < attempts - 1) {

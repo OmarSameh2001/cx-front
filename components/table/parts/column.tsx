@@ -1,3 +1,6 @@
+import { isTruthy } from "@/utils/helper/checker";
+import { CircleCheck, CircleX } from "lucide-react";
+
 export function TableColumn({ type, data }: any) {
   switch (type) {
     case "logo": {
@@ -36,6 +39,8 @@ export function TableColumn({ type, data }: any) {
       );
     case "price":
       return <div className="text-left font-medium text-green-500">{data}</div>;
+    case "boolean":
+      return <div className="flex justify-center items-center">{isTruthy(data) ? <CircleCheck color="green" /> : <CircleX color="red" />}</div>;
     default:
       return null;
   }

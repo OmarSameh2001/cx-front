@@ -28,6 +28,7 @@ import type {
 import type { LookupResult } from "@/dto/lookup/lookup";
 import { FormService } from "@/services/form/form";
 import { LookupService } from "@/services/lookup/lookup";
+import { showErrorToast, showSuccessToast } from "@/utils/toaster/toaster";
 
 const formService = new FormService();
 const lookupService = new LookupService();
@@ -145,6 +146,7 @@ export default function FormCreatePage() {
   const handleSubmit = async () => {
     setError(null);
     if (!canSubmit) {
+      showErrorToast("Please fill the form name, at least one submitter type, and all questions.")
       setError("Please fill the form name, at least one submitter type, and all questions.");
       return;
     }
@@ -159,8 +161,10 @@ export default function FormCreatePage() {
     setSubmitting(true);
     try {
       const created = await formService.create(payload);
+      showSuccessToast('Form created succesfully')
       router.push(`/form/${created.id}`);
     } catch (e) {
+      showErrorToast("Failed to create form")
       setError(e instanceof Error ? e.message : "Failed to create form");
     } finally {
       setSubmitting(false);

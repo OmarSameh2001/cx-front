@@ -31,14 +31,14 @@ function Table({
 //   const customPath = getPathName(base);
 //   console.log(customPath);
   return (
-    <div className="col-span-full xl:col-span-6 bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-400 dark:border-gray-200 overflow-hidden">
-      <header className="px-4 xs:px-7 py-5 border-b border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
-        <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-100">
+    <div className="col-span-full xl:col-span-6 bg-card shadow-xs rounded-xl border border-border overflow-hidden">
+      <header className="px-4 xs:px-7 py-5 border-b border-border flex items-center justify-between">
+        <h2 className="font-semibold text-xl text-card-foreground">
           {name || "Table"}
         </h2>
         {addNew && (
           <button
-            className="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded cursor-pointer"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded cursor-pointer"
             onClick={addNew}
           >
             {buttonName || `Add New ${name || ""}`}
@@ -51,7 +51,7 @@ function Table({
           {!loading && data?.length > 0 ? (
             <table className="table-auto w-full">
               {/* Table header */}
-              <thead className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+              <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
                   <ColumnHeader columns={columns} />
                   {actions?.length && actions?.length > 0 ? (
@@ -66,7 +66,7 @@ function Table({
                 {data.map((row, rowIndex) => (
                   <tr
                     key={row.id ?? rowIndex}
-                    className="hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="hover:bg-accent hover:text-accent-foreground"
                   >
                     {columns.map((column) => (
                       <td
@@ -113,14 +113,14 @@ function Table({
           ) : loading ? (
             <table className="table-auto w-full">
               {/* Table header */}
-              <thead className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+              <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
                   <ColumnHeader columns={columns} />
                 </tr>
               </thead>
               {/* Table body */}
               <tbody>
-                <tr className="hover:bg-gray-100 dark:hover:bg-gray-700">
+                <tr className="hover:bg-accent hover:text-accent-foreground">
                   <td
                     className="py-5 whitespace-nowrap text-center"
                     colSpan={columns.length}
@@ -134,14 +134,14 @@ function Table({
           ) : (
             <table className="table-auto w-full">
               {/* Table header */}
-              <thead className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/50">
+              <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
                   <ColumnHeader columns={columns} />
                 </tr>
               </thead>
               {/* Table body */}
               <tbody>
-                <tr className="hover:bg-gray-100 dark:hover:bg-gray-700">
+                <tr className="hover:bg-accent hover:text-accent-foreground">
                   <td
                     className="py-5 text-center max-w-[50vw]"
                     colSpan={columns.length}

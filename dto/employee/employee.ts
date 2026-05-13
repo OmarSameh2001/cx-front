@@ -39,7 +39,9 @@ export interface EmployeeSummary {
   email: string;
   is_active: boolean;
   role_id: number | null;
+  role_name: string | null;
   unit_id: number | null;
+  unit_name: string | null;
   organisation_id: number;
   assigned_units: number[];
 }

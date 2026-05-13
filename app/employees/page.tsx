@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import Table from "@/components/table/table";
 import { EmployeeService } from "@/services/employee/employee";
@@ -21,7 +21,9 @@ const COLUMNS = [
   { key: "last_name", name: "Last Name", type: "text" },
   { key: "username", name: "Username", type: "text" },
   { key: "email", name: "Email", type: "text" },
-  { key: "is_active", name: "Status", type: "text" },
+  { key: "role_display", name: "Role", type: "text" },
+  { key: "unit_display", name: "Unit", type: "text" },
+  { key: "is_active", name: "Status", type: "boolean" },
 ];
 
 const EMPTY_CREATE: EmployeeCreate = {
@@ -47,6 +49,7 @@ export default function EmployeesPage() {
 
   const [roles, setRoles] = useState<LookupResult[]>([]);
   const [units, setUnits] = useState<LookupResult[]>([]);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<EmployeeCreate>(EMPTY_CREATE);
@@ -79,7 +82,8 @@ export default function EmployeesPage() {
     }
   }, [currentPage, itemsPerPage]);
 
-  const fetchLookups = useCallback(async () => {
+  const ensureLookups = useCallback(async () => {
+    if (lookupsLoaded) return;
     try {
       const [rolesRes, unitsRes] = await Promise.all([
         lookupService.roles(),
@@ -87,18 +91,15 @@ export default function EmployeesPage() {
       ]);
       setRoles(rolesRes);
       setUnits(unitsRes);
+      setLookupsLoaded(true);
     } catch {
       // non-critical; form selects will just be empty
     }
-  }, []);
+  }, [lookupsLoaded]);
 
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
-
-  useEffect(() => {
-    fetchLookups();
-  }, [fetchLookups]);
 
   async function handleCreate() {
     setCreating(true);
@@ -128,6 +129,7 @@ export default function EmployeesPage() {
     });
     setEditOpen(true);
     setEditError(null);
+    ensureLookups();
   }
 
   async function handleUpdate() {
@@ -162,19 +164,24 @@ export default function EmployeesPage() {
   const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
   const hasNextPage = currentPage < totalPages;
 
-  const tableData = employees.map((e) => ({
-    ...e,
-    is_active: e.is_active ? "Active" : "Inactive",
-  }));
+  const tableRows = useMemo(
+    () =>
+      employees.map((e) => ({
+        ...e,
+        role_display: e.role_id ? `${e.role_name ?? "—"}` : "—",
+        unit_display: e.unit_id ? `${e.unit_name ?? "—"}` : "—",
+      })),
+    [employees]
+  );
 
   return (
-    <div className="p-6">
+    <div className="flex-1 min-w-0 min-h-screen p-6">
       {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
 
       <Table
         name="Employees"
         columns={COLUMNS}
-        data={tableData}
+        data={tableRows}
         loading={loading}
         query=""
         base="employees"
@@ -182,6 +189,7 @@ export default function EmployeesPage() {
           setCreateForm(EMPTY_CREATE);
           setCreateError(null);
           setCreateOpen(true);
+          ensureLookups();
         }}
         buttonName="Add Employee"
         actions={[
@@ -328,7 +336,7 @@ function EmployeeForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="First Name">
           <input
             type="text"
@@ -362,7 +370,7 @@ function EmployeeForm({
           />
         </Field>
         {showPassword && (
-          <Field label="Password" className="col-span-2">
+          <Field label="Password" className="sm:col-span-2">
             <input
               type="password"
               value={v.password ?? ""}
@@ -403,7 +411,7 @@ function EmployeeForm({
             ))}
           </select>
         </Field>
-        <div className="col-span-2 flex items-center gap-2">
+        <div className="sm:col-span-2 flex items-center gap-2">
           <input
             type="checkbox"
             id="emp-is-active"

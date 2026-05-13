@@ -37,7 +37,7 @@ const navItems: NavItem[] = [
     { label: "Organisation", permission: "organisations", href: "/organisation", icon: <Building /> },
     { label: "Customers", permission: "customers", href: "/customers", icon: <UserStar /> },
     { label: "Employees", permission: "employees", href: "/employees", icon: <UserCog /> },
-    { label: "Roles", permission: "roles", href: "/roles-and-permissions", icon: <UserLock /> },
+    { label: "Roles", permission: "roles", href: "/roles", icon: <UserLock /> },
 ];
 
 const authService = new AuthService();
