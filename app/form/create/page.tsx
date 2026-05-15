@@ -23,6 +23,7 @@ import { createField, type FormField } from "@/dto/form/form-field";
 import type {
   FormCreatePayload,
   FormFieldCreatePayload,
+  FormType,
   SubmitterType,
 } from "@/dto/form/form";
 import type { LookupResult } from "@/dto/lookup/lookup";
@@ -59,6 +60,10 @@ export default function FormCreatePage() {
   const [submitterType, setSubmitterType] = useState<SubmitterType[]>([
     "employee",
   ]);
+  const [formType, setFormType] = useState<FormType>("questionnaire");
+  const [timeLimit, setTimeLimit] = useState<string>("");
+  const [maxAttempts, setMaxAttempts] = useState<string>("");
+  const [resultsRevealed, setResultsRevealed] = useState<boolean>(false);
   const [selectedUnits, setSelectedUnits] = useState<LookupResult[]>([]);
   const hasUnits = selectedUnits.length > 0;
 
@@ -150,12 +155,35 @@ export default function FormCreatePage() {
       setError("Please fill the form name, at least one submitter type, and all questions.");
       return;
     }
+    const parsedTimeLimit =
+      timeLimit.trim() === "" ? null : Number(timeLimit);
+    const parsedMaxAttempts =
+      maxAttempts.trim() === "" ? null : Number(maxAttempts);
+    if (
+      parsedTimeLimit != null &&
+      (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 1)
+    ) {
+      showErrorToast("Time limit must be a positive number");
+      return;
+    }
+    if (
+      parsedMaxAttempts != null &&
+      (!Number.isFinite(parsedMaxAttempts) || parsedMaxAttempts < 1)
+    ) {
+      showErrorToast("Max attempts must be a positive number");
+      return;
+    }
     const payload: FormCreatePayload = {
       name: name.trim(),
       description: description.trim() || null,
+      type: formType,
       submitter_type: submitterType,
       assigned_to_units:
         selectedUnits.length > 0 ? selectedUnits.map((u) => u.id) : null,
+      time_limit_minutes:
+        formType === "exam" ? parsedTimeLimit : null,
+      max_attempts: parsedMaxAttempts,
+      results_revealed: resultsRevealed,
       fields: fields.map(toFieldPayload),
     };
     setSubmitting(true);
@@ -231,6 +259,74 @@ export default function FormCreatePage() {
               value={selectedUnits}
               onChange={setSelectedUnits}
             />
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Form type
+            </span>
+            <div className="flex gap-2 flex-wrap">
+              {(["questionnaire", "exam"] as FormType[]).map((opt) => {
+                const active = formType === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setFormType(opt)}
+                    className={[
+                      "px-3 py-1.5 rounded-full text-sm border transition-colors capitalize",
+                      active
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-foreground border-border hover:bg-muted/60",
+                    ].join(" ")}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            {formType === "exam" && (
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Time limit (minutes)
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={timeLimit}
+                  onChange={(e) => setTimeLimit(e.target.value)}
+                  placeholder="e.g. 30"
+                  className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Max attempts
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
+                placeholder={formType === "exam" ? "1" : "unlimited"}
+                className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+              />
+            </label>
+            <label className="flex items-center gap-2 self-end pb-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resultsRevealed}
+                onChange={(e) => setResultsRevealed(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-sm text-foreground">
+                Reveal results to submitters
+              </span>
+            </label>
           </div>
         </header>
 

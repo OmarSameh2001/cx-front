@@ -54,6 +54,97 @@ const TYPE_ICONS: Record<FieldType, React.ComponentType<{ className?: string }>>
   scale: BarChart3,
 };
 
+function isAutoGradable(type: FieldType): boolean {
+  return type === "single_choice" || type === "multi_choice" || type === "boolean";
+}
+
+function RightAnswerInput({
+  field,
+  onChange,
+}: {
+  field: FormField;
+  onChange: (patch: Partial<FormField>) => void;
+}) {
+  if (field.type === "boolean") {
+    const value = field.right_answer ?? "";
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Correct answer</span>
+        <select
+          value={value}
+          onChange={(e) => onChange({ right_answer: e.target.value || undefined })}
+          className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+        >
+          <option value="">—</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      </label>
+    );
+  }
+  if (field.type === "single_choice") {
+    const options = field.options ?? [];
+    const value = field.right_answer ?? "";
+    return (
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Correct answer</span>
+        <select
+          value={value}
+          onChange={(e) => onChange({ right_answer: e.target.value || undefined })}
+          className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+        >
+          <option value="">—</option>
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  if (field.type === "multi_choice") {
+    const options = field.options ?? [];
+    const selected = new Set(
+      (field.right_answer ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+    const toggle = (opt: string) => {
+      if (selected.has(opt)) selected.delete(opt);
+      else selected.add(opt);
+      const joined = Array.from(selected).join(",");
+      onChange({ right_answer: joined || undefined });
+    };
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">
+          Correct answers (any of)
+        </span>
+        <div className="flex flex-wrap gap-1">
+          {options.map((o) => (
+            <button
+              type="button"
+              key={o}
+              onClick={() => toggle(o)}
+              className={[
+                "px-2 py-1 rounded-full text-xs border",
+                selected.has(o)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover:bg-muted/60",
+              ].join(" ")}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 function FieldBody({
   field,
   onChange,
@@ -216,6 +307,33 @@ export default function FieldCard({
         <div className="pl-1">
           <FieldBody field={field} onChange={onChange} />
         </div>
+
+        {/* Grading controls (for auto-gradable types) */}
+        {isActive && isAutoGradable(field.type) && (
+          <div className="flex flex-col gap-2 pt-3 border-t border-border">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Grading
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <RightAnswerInput field={field} onChange={onChange} />
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">
+                  Score weight
+                </span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  value={field.score_weight}
+                  onChange={(e) =>
+                    onChange({ score_weight: Number(e.target.value) || 0 })
+                  }
+                  className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                />
+              </label>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-1 pt-3 border-t border-border">

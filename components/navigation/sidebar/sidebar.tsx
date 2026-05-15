@@ -1,5 +1,5 @@
 "use client"
-import { AtSign, BrainCircuit, Building, ChartColumn, Form, LogOut, UserCog, UserLock, UserRound, UserRoundCheck, UserRoundPlus, UserStar, Workflow } from "lucide-react";
+import { AtSign, BrainCircuit, Building, ChartColumn, ClipboardList, Form, LayoutDashboard, LogOut, UserCog, UserLock, UserRound, UserRoundCheck, UserRoundPlus, UserStar, Workflow } from "lucide-react";
 import { AuthService } from "@/services/auth/auth";
 import Link from "next/link";
 import { useAuth } from "@/app/_providers/auth-provider";
@@ -11,6 +11,18 @@ type NavItem =
     | { label: string; href?: never; permission?: string; children: { label: string; href: string; icon?: icon }[]; icon?: icon };
 
 const navItems: NavItem[] = [
+    {
+        label: "My forms",
+        icon: <LayoutDashboard />,
+        href: "/dashboard",
+        permission: "",
+    },
+    {
+        label: "My submissions",
+        icon: <ClipboardList />,
+        href: "/submissions/mine",
+        permission: "",
+    },
     {
         label: "Form",
         icon: <Form />,
