@@ -12,7 +12,7 @@ type NavItem =
 
 const navItems: NavItem[] = [
     {
-        label: "My forms",
+        label: "Assigned forms",
         icon: <LayoutDashboard />,
         href: "/dashboard",
         permission: "",
@@ -33,21 +33,29 @@ const navItems: NavItem[] = [
         //     { label: "Create", href: "/form" },
         // ],
     },
-    { label: "Mentions", permission: "mentions", href: "/mentions", icon: <AtSign /> },
-    { label: "Visualisation", permission: "visualisation", href: "/visualisation", icon: <ChartColumn /> },
+    {
+        label: "Mentions", permission: "mentions", href: '#'//"/mentions"
+        , icon: <AtSign />
+    },
+    {
+        label: "Visualisation", permission: "visualisation", href: '#'//"/visualisation"
+        , icon: <ChartColumn />
+    },
     {
         label: "Workflow",
         icon: <Workflow />,
-        href: "/workflow",
+        href: '#',//"/workflow",
         permission: "workflows",
         // children: [
         //     { label: "Existing", href: "/workflow/existing" },
         //     { label: "Create", href: "/workflow/create" },
         // ],
     },
-    { label: "Vision Intelligence", permission: "vision-intelligence", href: "/vision-intelligence", icon: <BrainCircuit /> },
+    { label: "Vision Intelligence", permission: "vision-intelligence", href: '#',//"/vision-intelligence",
+     icon: <BrainCircuit /> },
     { label: "Organisation", permission: "organisations", href: "/organisation", icon: <Building /> },
-    { label: "Customers", permission: "customers", href: "/customers", icon: <UserStar /> },
+    { label: "Customers", permission: "customers", href: '#',//"/customers",
+     icon: <UserStar /> },
     { label: "Employees", permission: "employees", href: "/employees", icon: <UserCog /> },
     { label: "Roles", permission: "roles", href: "/roles", icon: <UserLock /> },
 ];
@@ -65,7 +73,7 @@ export default function SideBar() {
         clearAuth();
     }
 
-    
+
     return (
         <div className="flex h-screen flex-col justify-between border-e border-border bg-background text-foreground max-w-xs">
             <div className="px-1 sm:px-4 py-3 sm:py-6 flex flex-col justify-center items-center">
@@ -118,35 +126,35 @@ export default function SideBar() {
                     )}
                 </ul>)}
                 {!loading && user?.id && (
-                <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
-                    <ul className="space-y-1">
-                        <li>
-                            <button onClick={handleLogout} className="w-full block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2 text-destructive">
-                                <LogOut /> <span className="hidden sm:inline">Logout</span>
-                            </button>
-                        </li>
-                    </ul>
-                </div>
+                    <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
+                        <ul className="space-y-1">
+                            <li>
+                                <button onClick={handleLogout} className="w-full block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2 text-destructive">
+                                    <LogOut /> <span className="hidden sm:inline">Logout</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
                 )}
                 {!loading && !user?.id && (
-                <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
-                    <ul className="space-y-1">
-                        <li>
-                            <Link href="/login" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
-                                <UserRoundCheck /> <span className="hidden sm:inline">Login</span>
-                            </Link>
-                        </li>
-                        <li>
-                            <Link href="/register" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
-                                <UserRoundPlus /> <span className="hidden sm:inline">Register</span>
-                            </Link>
-                        </li>
-                    </ul>
-                </div>
-            )}
+                    <div className="px-1 sm:px-4 py-3 sm:py-6 border-t border-border">
+                        <ul className="space-y-1">
+                            <li>
+                                <Link href="/login" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
+                                    <UserRoundCheck /> <span className="hidden sm:inline">Login</span>
+                                </Link>
+                            </li>
+                            <li>
+                                <Link href="/register" className="block rounded-lg px-2 py-2 text-sm font-medium flex items-center gap-2">
+                                    <UserRoundPlus /> <span className="hidden sm:inline">Register</span>
+                                </Link>
+                            </li>
+                        </ul>
+                    </div>
+                )}
             </div>
 
-            
+
         </div>
     );
 }

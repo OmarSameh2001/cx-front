@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, Layers } from "lucide-react";
 import type { TableActionButton } from "@/dto/table/table";
 
 export function TableActionIcon({
@@ -33,6 +33,16 @@ export function TableActionIcon({
           className="cursor-pointer"
         >
           <Pencil className="text-yellow-500 size-5" />
+        </button>
+      );
+    case "select":
+      return (
+        <button
+          title="Manage Units"
+          onClick={() => action?.onClick?.(row?.id, row)}
+          className="cursor-pointer"
+        >
+          <Layers className="text-blue-500 size-5" />
         </button>
       );
     default:
