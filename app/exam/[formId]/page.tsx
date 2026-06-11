@@ -268,32 +268,12 @@ export default function ExamPage({
         </header>
 
         <form className="flex flex-col gap-4">
-          {form.fields.map((field, idx) => (
-            <div
-              key={field.id}
-              className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {idx + 1}. {field.question}
-                  {field.is_required && (
-                    <span className="text-destructive ml-1">*</span>
-                  )}
-                </p>
-                {field.help_text && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {field.help_text}
-                  </p>
-                )}
-              </div>
-              <AnswerField
-                field={field}
-                value={answers[String(field.id)]}
-                onChange={(v) => updateAnswer(field.id, v)}
-                disabled={expired || submitting}
-              />
-            </div>
-          ))}
+          <FormFields
+            form={form}
+            answers={answers}
+            disabled={expired || submitting}
+            onAnswer={updateAnswer}
+          />
         </form>
 
         <div className="flex justify-end gap-2 pb-10">
@@ -315,6 +295,121 @@ export default function ExamPage({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FormFields({
+  form,
+  answers,
+  disabled,
+  onAnswer,
+}: {
+  form: FormRead;
+  answers: Record<string, unknown>;
+  disabled: boolean;
+  onAnswer: (fieldId: number, value: unknown) => void;
+}) {
+  const sections = (form.sections ?? []).slice().sort((a, b) => a.order - b.order);
+  const hasSections = sections.length > 0;
+
+  const sortedFields = [...form.fields].sort((a, b) => a.order - b.order);
+
+  // Build global question numbers preserving section order
+  const fieldNumber = new Map<number, number>();
+  if (hasSections) {
+    let n = 0;
+    for (const section of sections) {
+      for (const f of sortedFields.filter((sf) => sf.section_id === section.id)) {
+        fieldNumber.set(f.id, ++n);
+      }
+    }
+  } else {
+    sortedFields.forEach((f, i) => fieldNumber.set(f.id, i + 1));
+  }
+
+  if (!hasSections) {
+    return (
+      <>
+        {sortedFields.map((field) => (
+          <FieldAnswerCard
+            key={field.id}
+            field={field}
+            num={fieldNumber.get(field.id)!}
+            answers={answers}
+            disabled={disabled}
+            onAnswer={onAnswer}
+          />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {sections.map((section) => {
+        const sFields = sortedFields.filter((f) => f.section_id === section.id);
+        return (
+          <div key={section.id} className="flex flex-col gap-4">
+            <div className="rounded-lg bg-card text-card-foreground border border-border border-l-4 border-l-primary shadow-sm p-5">
+              <h2 className="text-base font-semibold text-foreground">
+                {section.title}
+              </h2>
+              {section.description && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {section.description}
+                </p>
+              )}
+            </div>
+            {sFields.map((field) => (
+              <FieldAnswerCard
+                key={field.id}
+                field={field}
+                num={fieldNumber.get(field.id)!}
+                answers={answers}
+                disabled={disabled}
+                onAnswer={onAnswer}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function FieldAnswerCard({
+  field,
+  num,
+  answers,
+  disabled,
+  onAnswer,
+}: {
+  field: FormRead["fields"][number];
+  num: number;
+  answers: Record<string, unknown>;
+  disabled: boolean;
+  onAnswer: (fieldId: number, value: unknown) => void;
+}) {
+  return (
+    <div className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-medium text-foreground">
+          {num}. {field.question}
+          {field.is_required && (
+            <span className="text-destructive ml-1">*</span>
+          )}
+        </p>
+        {field.help_text && (
+          <p className="text-xs text-muted-foreground mt-1">{field.help_text}</p>
+        )}
+      </div>
+      <AnswerField
+        field={field}
+        value={answers[String(field.id)]}
+        onChange={(v) => onAnswer(field.id, v)}
+        disabled={disabled}
+      />
     </div>
   );
 }

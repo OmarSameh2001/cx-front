@@ -6,6 +6,7 @@ export interface PublicFormField {
   order: number;
   help_text?: string | null;
   is_required: boolean;
+  section_id?: number | null;
 }
 
 export interface PublicForm {
@@ -14,6 +15,7 @@ export interface PublicForm {
   description: string | null;
   type: string;
   fields: PublicFormField[];
+  sections?: import("@/dto/form/form").FormSection[] | null;
 }
 
 export interface PublicCustomer {

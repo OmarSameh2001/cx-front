@@ -19,6 +19,7 @@ export interface FormField {
   help_text?: string;
   is_required: boolean;
   score_weight: number;
+  section_id?: number | null;
 }
 
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {

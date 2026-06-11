@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -22,20 +22,22 @@ import {
   ArrowLeft,
   ClipboardList,
   Copy,
+  LayoutList,
   Link2,
   Lock,
   Plus,
   RefreshCw,
   Trash2,
-  X,
 } from "lucide-react";
 import FieldCard from "@/components/form/field-card";
+import SectionCard from "@/components/form/section-card";
 import { UnitsMultiSelect } from "@/components/units-multi-select";
 import { createField, type FormField } from "@/dto/form/form-field";
 import type {
   FormCreatePayload,
   FormFieldCreatePayload,
   FormRead,
+  FormSection,
   FormType,
   SubmitterType,
 } from "@/dto/form/form";
@@ -67,6 +69,7 @@ function toFieldPayload(f: FormField): FormFieldCreatePayload {
     help_text: f.help_text ?? null,
     is_required: f.is_required,
     score_weight: f.score_weight,
+    section_id: f.section_id ?? null,
   };
 }
 
@@ -77,6 +80,7 @@ export default function FormEditPage({
 }) {
   const { id } = use(params);
   const { user } = useAuth();
+  const nextSectionId = useRef(1);
 
   const [form, setForm] = useState<FormRead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,9 +96,11 @@ export default function FormEditPage({
   const [resultsRevealed, setResultsRevealed] = useState<boolean>(false);
   const [selectedUnits, setSelectedUnits] = useState<LookupResult[]>([]);
   const [fields, setFields] = useState<FormField[]>([]);
+  const [sections, setSections] = useState<FormSection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const hasUnits = selectedUnits.length > 0;
+  const hasSections = sections.length > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +117,14 @@ export default function FormEditPage({
         setTimeLimit(f.time_limit_minutes != null ? String(f.time_limit_minutes) : "");
         setMaxAttempts(f.max_attempts != null ? String(f.max_attempts) : "");
         setResultsRevealed(f.results_revealed);
+
+        const loadedSections: FormSection[] = f.sections ?? [];
+        setSections(loadedSections);
+        if (loadedSections.length > 0) {
+          const maxId = Math.max(...loadedSections.map((s) => s.id));
+          nextSectionId.current = maxId + 1;
+        }
+
         setFields(
           f.fields.map((fld) => ({
             id: String(fld.id),
@@ -122,6 +136,7 @@ export default function FormEditPage({
             help_text: fld.help_text ?? undefined,
             is_required: fld.is_required,
             score_weight: fld.score_weight,
+            section_id: fld.section_id ?? null,
           }))
         );
 
@@ -133,7 +148,7 @@ export default function FormEditPage({
               setSelectedUnits(allUnits.filter((u) => unitSet.has(u.id)));
             }
           } catch {
-            // non-critical; dropdown will load on open
+            // non-critical
           }
         }
       })
@@ -160,6 +175,8 @@ export default function FormEditPage({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // ── Flat-mode field operations ──────────────────────────────────────────────
 
   const updateField = (fieldId: string, patch: Partial<FormField>) => {
     setFields((prev) =>
@@ -209,6 +226,78 @@ export default function FormEditPage({
     });
   };
 
+  // ── Section operations ──────────────────────────────────────────────────────
+
+  const addSection = () => {
+    const newId = nextSectionId.current++;
+    const newSection: FormSection = {
+      id: newId,
+      title: "",
+      description: null,
+      order: sections.length,
+      score_weight: 1,
+    };
+    if (sections.length === 0) {
+      setSections([newSection]);
+      setFields((prev) => prev.map((f) => ({ ...f, section_id: newId })));
+    } else {
+      setSections((prev) => [...prev, newSection]);
+    }
+  };
+
+  const removeSections = () => {
+    setSections([]);
+    setFields((prev) => prev.map((f) => ({ ...f, section_id: null })));
+  };
+
+  const updateSection = (sectionId: number, patch: Partial<FormSection>) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, ...patch } : s))
+    );
+  };
+
+  const deleteSection = (sectionId: number) => {
+    setSections((prev) =>
+      prev
+        .filter((s) => s.id !== sectionId)
+        .map((s, i) => ({ ...s, order: i }))
+    );
+    setFields((prev) => prev.filter((f) => f.section_id !== sectionId));
+  };
+
+  const addFieldToSection = (sectionId: number) => {
+    setFields((prev) => {
+      const sectionFields = prev.filter((f) => f.section_id === sectionId);
+      const newField = createField(sectionFields.length);
+      newField.section_id = sectionId;
+      setActiveId(newField.id);
+      return [...prev, newField];
+    });
+  };
+
+  const reorderFieldsInSection = (sectionId: number, reordered: FormField[]) => {
+    setFields((prev) => {
+      const others = prev.filter((f) => f.section_id !== sectionId);
+      return [...others, ...reordered];
+    });
+  };
+
+  const handleSectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setSections((prev) => {
+      const oldIndex = prev.findIndex((s) => `section-${s.id}` === active.id);
+      const newIndex = prev.findIndex((s) => `section-${s.id}` === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return arrayMove(prev, oldIndex, newIndex).map((s, i) => ({
+        ...s,
+        order: i,
+      }));
+    });
+  };
+
+  // ── Misc ────────────────────────────────────────────────────────────────────
+
   const toggleSubmitter = (v: SubmitterType) => {
     setSubmitterType((prev) =>
       prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
@@ -218,10 +307,18 @@ export default function FormEditPage({
   const canSubmit = useMemo(() => {
     if (!name.trim()) return false;
     if (submitterType.length === 0) return false;
-    if (fields.length === 0) return false;
-    if (fields.some((f) => !f.question.trim())) return false;
+    if (hasSections) {
+      if (sections.length === 0) return false;
+      if (sections.some((s) => !s.title.trim())) return false;
+      const sectionFields = fields.filter((f) => f.section_id != null);
+      if (sectionFields.length === 0) return false;
+      if (sectionFields.some((f) => !f.question.trim())) return false;
+    } else {
+      if (fields.length === 0) return false;
+      if (fields.some((f) => !f.question.trim())) return false;
+    }
     return true;
-  }, [name, submitterType, fields]);
+  }, [name, submitterType, fields, sections, hasSections]);
 
   async function handleSave() {
     if (!canSubmit) {
@@ -258,6 +355,7 @@ export default function FormEditPage({
       max_attempts: parsedMaxAttempts,
       results_revealed: resultsRevealed,
       fields: fields.map(toFieldPayload),
+      sections: hasSections ? sections : null,
     };
     setBusy(true);
     try {
@@ -271,7 +369,6 @@ export default function FormEditPage({
     }
   }
 
-  // edit-lock: backend blocks updates when active or when caller isn't the creator
   const lockReason = !form
     ? null
     : form.is_active
@@ -280,7 +377,6 @@ export default function FormEditPage({
     ? "Only the form creator can edit it."
     : null;
 
-  // public-link helpers
   const allowsPublic =
     form?.type === "questionnaire" &&
     (form?.submitter_type ?? []).includes("customer");
@@ -531,40 +627,111 @@ export default function FormEditPage({
               </div>
             </header>
 
-            {/* ── questions ── */}
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={fields.map((f) => f.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="flex flex-col gap-4">
-                  {fields.map((field) => (
-                    <FieldCard
-                      key={field.id}
-                      field={field}
-                      isActive={activeId === field.id}
-                      onFocus={() => setActiveId(field.id)}
-                      onChange={(patch) => updateField(field.id, patch)}
-                      onDelete={() => deleteField(field.id)}
-                      onDuplicate={() => duplicateField(field.id)}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+            {/* ── sections toolbar ── */}
+            <div className="flex items-center justify-between px-1">
+              <span className="text-sm text-muted-foreground">
+                {hasSections
+                  ? `${sections.length} section${sections.length !== 1 ? "s" : ""}`
+                  : "Flat layout"}
+              </span>
+              <div className="flex items-center gap-2">
+                {hasSections && (
+                  <button
+                    type="button"
+                    onClick={removeSections}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Remove sections
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={addSection}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-background text-sm text-foreground hover:bg-muted/60"
+                >
+                  <LayoutList className="h-4 w-4" />
+                  {hasSections ? "Add section" : "Add sections"}
+                </button>
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={addField}
-              className="self-center mt-2 flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 shadow-sm text-sm font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              Add question
-            </button>
+            {/* ── questions / sections ── */}
+            {hasSections ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleSectionDragEnd}
+              >
+                <SortableContext
+                  items={sections.map((s) => `section-${s.id}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col gap-6">
+                    {sections.map((section) => (
+                      <SectionCard
+                        key={section.id}
+                        section={section}
+                        fields={fields
+                          .filter((f) => f.section_id === section.id)
+                          .sort((a, b) => a.order - b.order)}
+                        isExam={formType === "exam"}
+                        activeFieldId={activeId}
+                        onUpdateSection={(patch) =>
+                          updateSection(section.id, patch)
+                        }
+                        onDeleteSection={() => deleteSection(section.id)}
+                        onAddField={() => addFieldToSection(section.id)}
+                        onUpdateField={(fieldId, patch) =>
+                          updateField(fieldId, patch)
+                        }
+                        onDeleteField={(fieldId) => deleteField(fieldId)}
+                        onDuplicateField={(fieldId) => duplicateField(fieldId)}
+                        onFocusField={(fid) => setActiveId(fid)}
+                        onReorderFields={(reordered) =>
+                          reorderFieldsInSection(section.id, reordered)
+                        }
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={fields.map((f) => f.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="flex flex-col gap-4">
+                      {fields.map((field) => (
+                        <FieldCard
+                          key={field.id}
+                          field={field}
+                          isActive={activeId === field.id}
+                          onFocus={() => setActiveId(field.id)}
+                          onChange={(patch) => updateField(field.id, patch)}
+                          onDelete={() => deleteField(field.id)}
+                          onDuplicate={() => duplicateField(field.id)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+
+                <button
+                  type="button"
+                  onClick={addField}
+                  className="self-center mt-2 flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 shadow-sm text-sm font-medium"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add question
+                </button>
+              </>
+            )}
 
             {/* ── public link ── */}
             <section className="rounded-lg bg-card border border-border shadow-sm p-6 flex flex-col gap-3">
@@ -684,4 +851,3 @@ export default function FormEditPage({
     </div>
   );
 }
-

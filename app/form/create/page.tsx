@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -17,13 +17,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { LayoutList, Plus } from "lucide-react";
 import { UnitsMultiSelect } from "@/components/units-multi-select";
 import FieldCard from "@/components/form/field-card";
+import SectionCard from "@/components/form/section-card";
 import { createField, type FormField } from "@/dto/form/form-field";
 import type {
   FormCreatePayload,
   FormFieldCreatePayload,
+  FormSection,
   FormType,
   SubmitterType,
 } from "@/dto/form/form";
@@ -50,11 +52,13 @@ function toFieldPayload(f: FormField): FormFieldCreatePayload {
     help_text: f.help_text ?? null,
     is_required: f.is_required,
     score_weight: f.score_weight,
+    section_id: f.section_id ?? null,
   };
 }
 
 export default function FormCreatePage() {
   const router = useRouter();
+  const nextSectionId = useRef(1);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -77,7 +81,9 @@ export default function FormCreatePage() {
   }, [hasUnits]);
 
   const [fields, setFields] = useState<FormField[]>(() => [createField(0)]);
+  const [sections, setSections] = useState<FormSection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const hasSections = sections.length > 0;
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +92,8 @@ export default function FormCreatePage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // ── Flat-mode field operations ──────────────────────────────────────────────
 
   const updateField = (id: string, patch: Partial<FormField>) => {
     setFields((prev) =>
@@ -135,6 +143,80 @@ export default function FormCreatePage() {
     });
   };
 
+  // ── Section operations ──────────────────────────────────────────────────────
+
+  const addSection = () => {
+    const id = nextSectionId.current++;
+    const newSection: FormSection = {
+      id,
+      title: "",
+      description: null,
+      order: sections.length,
+      score_weight: 1,
+    };
+    if (sections.length === 0) {
+      // First section: migrate all existing fields into it
+      setSections([newSection]);
+      setFields((prev) =>
+        prev.map((f) => ({ ...f, section_id: id }))
+      );
+    } else {
+      setSections((prev) => [...prev, newSection]);
+    }
+  };
+
+  const removeSections = () => {
+    setSections([]);
+    setFields((prev) => prev.map((f) => ({ ...f, section_id: null })));
+  };
+
+  const updateSection = (id: number, patch: Partial<FormSection>) => {
+    setSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
+    );
+  };
+
+  const deleteSection = (id: number) => {
+    setSections((prev) => {
+      const remaining = prev.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i }));
+      return remaining;
+    });
+    setFields((prev) => prev.filter((f) => f.section_id !== id));
+  };
+
+  const addFieldToSection = (sectionId: number) => {
+    setFields((prev) => {
+      const sectionFields = prev.filter((f) => f.section_id === sectionId);
+      const newField = createField(sectionFields.length);
+      newField.section_id = sectionId;
+      setActiveId(newField.id);
+      return [...prev, newField];
+    });
+  };
+
+  const reorderFieldsInSection = (sectionId: number, reordered: FormField[]) => {
+    setFields((prev) => {
+      const others = prev.filter((f) => f.section_id !== sectionId);
+      return [...others, ...reordered];
+    });
+  };
+
+  const handleSectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setSections((prev) => {
+      const oldIndex = prev.findIndex((s) => `section-${s.id}` === active.id);
+      const newIndex = prev.findIndex((s) => `section-${s.id}` === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return arrayMove(prev, oldIndex, newIndex).map((s, i) => ({
+        ...s,
+        order: i,
+      }));
+    });
+  };
+
+  // ── Misc ────────────────────────────────────────────────────────────────────
+
   const toggleSubmitter = (v: SubmitterType) => {
     setSubmitterType((prev) =>
       prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
@@ -144,16 +226,28 @@ export default function FormCreatePage() {
   const canSubmit = useMemo(() => {
     if (!name.trim()) return false;
     if (submitterType.length === 0) return false;
-    if (fields.length === 0) return false;
-    if (fields.some((f) => !f.question.trim())) return false;
+    if (hasSections) {
+      if (sections.length === 0) return false;
+      if (sections.some((s) => !s.title.trim())) return false;
+      const sectionFields = fields.filter((f) => f.section_id != null);
+      if (sectionFields.length === 0) return false;
+      if (sectionFields.some((f) => !f.question.trim())) return false;
+    } else {
+      if (fields.length === 0) return false;
+      if (fields.some((f) => !f.question.trim())) return false;
+    }
     return true;
-  }, [name, submitterType, fields]);
+  }, [name, submitterType, fields, sections, hasSections]);
 
   const handleSubmit = async () => {
     setError(null);
     if (!canSubmit) {
-      showErrorToast("Please fill the form name, at least one submitter type, and all questions.")
-      setError("Please fill the form name, at least one submitter type, and all questions.");
+      showErrorToast(
+        "Please fill the form name, at least one submitter type, and all questions."
+      );
+      setError(
+        "Please fill the form name, at least one submitter type, and all questions."
+      );
       return;
     }
     const parsedTimeLimit =
@@ -181,19 +275,19 @@ export default function FormCreatePage() {
       submitter_type: submitterType,
       assigned_to_units:
         selectedUnits.length > 0 ? selectedUnits.map((u) => u.id) : null,
-      time_limit_minutes:
-        formType === "exam" ? parsedTimeLimit : null,
+      time_limit_minutes: formType === "exam" ? parsedTimeLimit : null,
       max_attempts: parsedMaxAttempts,
       results_revealed: resultsRevealed,
       fields: fields.map(toFieldPayload),
+      sections: hasSections ? sections : null,
     };
     setSubmitting(true);
     try {
       const created = await formService.create(payload);
-      showSuccessToast('Form created succesfully')
+      showSuccessToast("Form created successfully");
       router.push(`/form/${created.id}`);
     } catch (e) {
-      showErrorToast("Failed to create form")
+      showErrorToast("Failed to create form");
       setError(e instanceof Error ? e.message : "Failed to create form");
     } finally {
       setSubmitting(false);
@@ -331,39 +425,107 @@ export default function FormCreatePage() {
           </div>
         </header>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={fields.map((f) => f.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="flex flex-col gap-4">
-              {fields.map((field) => (
-                <FieldCard
-                  key={field.id}
-                  field={field}
-                  isActive={activeId === field.id}
-                  onFocus={() => setActiveId(field.id)}
-                  onChange={(patch) => updateField(field.id, patch)}
-                  onDelete={() => deleteField(field.id)}
-                  onDuplicate={() => duplicateField(field.id)}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+        {/* Sections toolbar */}
+        <div className="flex items-center justify-between px-1">
+          <span className="text-sm text-muted-foreground">
+            {hasSections
+              ? `${sections.length} section${sections.length !== 1 ? "s" : ""}`
+              : "Flat layout"}
+          </span>
+          <div className="flex items-center gap-2">
+            {hasSections && (
+              <button
+                type="button"
+                onClick={removeSections}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Remove sections
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={addSection}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-background text-sm text-foreground hover:bg-muted/60"
+            >
+              <LayoutList className="h-4 w-4" />
+              {hasSections ? "Add section" : "Add sections"}
+            </button>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={addField}
-          className="self-center mt-2 flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 shadow-sm text-sm font-medium"
-        >
-          <Plus className="h-4 w-4" />
-          Add question
-        </button>
+        {/* Fields / Sections area */}
+        {hasSections ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleSectionDragEnd}
+          >
+            <SortableContext
+              items={sections.map((s) => `section-${s.id}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="flex flex-col gap-6">
+                {sections.map((section) => (
+                  <SectionCard
+                    key={section.id}
+                    section={section}
+                    fields={fields
+                      .filter((f) => f.section_id === section.id)
+                      .sort((a, b) => a.order - b.order)}
+                    isExam={formType === "exam"}
+                    activeFieldId={activeId}
+                    onUpdateSection={(patch) => updateSection(section.id, patch)}
+                    onDeleteSection={() => deleteSection(section.id)}
+                    onAddField={() => addFieldToSection(section.id)}
+                    onUpdateField={(fieldId, patch) => updateField(fieldId, patch)}
+                    onDeleteField={(fieldId) => deleteField(fieldId)}
+                    onDuplicateField={(fieldId) => duplicateField(fieldId)}
+                    onFocusField={(id) => setActiveId(id)}
+                    onReorderFields={(reordered) =>
+                      reorderFieldsInSection(section.id, reordered)
+                    }
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={fields.map((f) => f.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex flex-col gap-4">
+                  {fields.map((field) => (
+                    <FieldCard
+                      key={field.id}
+                      field={field}
+                      isActive={activeId === field.id}
+                      onFocus={() => setActiveId(field.id)}
+                      onChange={(patch) => updateField(field.id, patch)}
+                      onDelete={() => deleteField(field.id)}
+                      onDuplicate={() => duplicateField(field.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            <button
+              type="button"
+              onClick={addField}
+              className="self-center mt-2 flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 shadow-sm text-sm font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              Add question
+            </button>
+          </>
+        )}
 
         {error && (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm px-4 py-2">

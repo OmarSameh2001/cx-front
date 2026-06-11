@@ -9,6 +9,14 @@ export type MyStatus =
   | "late"
   | "expired";
 
+export interface FormSection {
+  id: number;
+  title: string;
+  description?: string | null;
+  order: number;
+  score_weight: number;
+}
+
 export interface FormFieldCreatePayload {
   question: string;
   type: FieldType;
@@ -18,6 +26,7 @@ export interface FormFieldCreatePayload {
   help_text?: string | null;
   is_required: boolean;
   score_weight: number;
+  section_id?: number | null;
 }
 
 export interface FormFieldRead extends FormFieldCreatePayload {
@@ -35,6 +44,7 @@ export interface FormCreatePayload {
   max_attempts?: number | null;
   results_revealed?: boolean;
   fields: FormFieldCreatePayload[];
+  sections?: FormSection[] | null;
 }
 
 export interface FormSummary {
@@ -74,4 +84,5 @@ export interface FormRead {
   created_at: string;
   created_by: number | null;
   fields: FormFieldRead[];
+  sections?: FormSection[] | null;
 }

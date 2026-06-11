@@ -194,32 +194,12 @@ export default function PublicFormPage({
         </section>
 
         <form className="flex flex-col gap-4">
-          {form.fields.map((field, idx) => (
-            <div
-              key={field.id}
-              className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3"
-            >
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {idx + 1}. {field.question}
-                  {field.is_required && (
-                    <span className="text-destructive ml-1">*</span>
-                  )}
-                </p>
-                {field.help_text && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {field.help_text}
-                  </p>
-                )}
-              </div>
-              <AnswerField
-                field={toAnswerField(field)}
-                value={answers[String(field.id)]}
-                onChange={(v) => updateAnswer(field.id, v)}
-                disabled={submitting}
-              />
-            </div>
-          ))}
+          <PublicFormFields
+            form={form}
+            answers={answers}
+            disabled={submitting}
+            onAnswer={updateAnswer}
+          />
         </form>
 
         <div className="flex justify-end pb-10">
@@ -234,6 +214,87 @@ export default function PublicFormPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function PublicFormFields({
+  form,
+  answers,
+  disabled,
+  onAnswer,
+}: {
+  form: PublicForm;
+  answers: Record<string, unknown>;
+  disabled: boolean;
+  onAnswer: (id: number, v: unknown) => void;
+}) {
+  const sections = (form.sections ?? []).slice().sort((a, b) => a.order - b.order);
+  const hasSections = sections.length > 0;
+
+  const sortedFields = [...form.fields].sort((a, b) => a.order - b.order);
+
+  const fieldNumber = new Map<number, number>();
+  if (hasSections) {
+    let n = 0;
+    for (const section of sections) {
+      for (const f of sortedFields.filter((sf) => sf.section_id === section.id)) {
+        fieldNumber.set(f.id, ++n);
+      }
+    }
+  } else {
+    sortedFields.forEach((f, i) => fieldNumber.set(f.id, i + 1));
+  }
+
+  const renderField = (field: PublicFormField, num: number) => (
+    <div
+      key={field.id}
+      className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3"
+    >
+      <div>
+        <p className="text-sm font-medium text-foreground">
+          {num}. {field.question}
+          {field.is_required && (
+            <span className="text-destructive ml-1">*</span>
+          )}
+        </p>
+        {field.help_text && (
+          <p className="text-xs text-muted-foreground mt-1">{field.help_text}</p>
+        )}
+      </div>
+      <AnswerField
+        field={toAnswerField(field)}
+        value={answers[String(field.id)]}
+        onChange={(v) => onAnswer(field.id, v)}
+        disabled={disabled}
+      />
+    </div>
+  );
+
+  if (!hasSections) {
+    return <>{sortedFields.map((f) => renderField(f, fieldNumber.get(f.id)!))}</>;
+  }
+
+  return (
+    <>
+      {sections.map((section) => {
+        const sFields = sortedFields.filter((f) => f.section_id === section.id);
+        return (
+          <div key={section.id} className="flex flex-col gap-4">
+            <div className="rounded-lg bg-card text-card-foreground border border-border border-l-4 border-l-primary shadow-sm p-5">
+              <h2 className="text-base font-semibold text-foreground">
+                {section.title}
+              </h2>
+              {section.description && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {section.description}
+                </p>
+              )}
+            </div>
+            {sFields.map((f) => renderField(f, fieldNumber.get(f.id)!))}
+          </div>
+        );
+      })}
+    </>
   );
 }
 
