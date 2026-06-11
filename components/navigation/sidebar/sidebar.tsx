@@ -75,7 +75,7 @@ export default function SideBar() {
 
 
     return (
-        <div className="flex h-screen flex-col justify-between border-e border-border bg-background text-foreground max-w-xs">
+        <div className="sticky top-0 flex h-screen flex-col justify-between border-e border-border bg-background text-foreground max-w-xs">
             <div className="px-1 sm:px-4 py-3 sm:py-6 flex flex-col justify-center items-center">
                 <Link href="/" className="flex flex-col sm:flex-row h-10 sm:w-32 gap-2 justify-center items-center rounded-lg bg-background/500 text-xs text-foreground">
                     <UserRound />

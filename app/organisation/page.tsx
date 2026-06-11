@@ -6,6 +6,7 @@ import Table from "@/components/table/table";
 import { OrganisationService } from "@/services/organisation/organisation";
 import { UnitService } from "@/services/unit/unit";
 import { useAuth } from "@/app/_providers/auth-provider";
+import { PermissionGate } from "@/components/protection/authorization";
 import {
   showErrorToast,
   showSuccessToast,
@@ -53,17 +54,10 @@ function buildTree(units: UnitSummary[]): UnitNode[] {
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function OrganisationPage() {
-  const { permissions } = useAuth();
+  const { permissions, isAdmin } = useAuth();
 
-  const canReadOrg = !!permissions["organisations:read"];
-  const canCreateOrg = !!permissions["organisations:create"];
-  const canUpdateOrg = !!permissions["organisations:update"];
-  const canDeleteOrg = !!permissions["organisations:delete"];
-
-  const canReadUnit = !!permissions["units:read"];
-  const canCreateUnit = !!permissions["units:create"];
-  const canUpdateUnit = !!permissions["units:update"];
-  const canDeleteUnit = !!permissions["units:delete"];
+  const canReadOrg = isAdmin || !!permissions["organisations:read"];
+  const canReadUnit = isAdmin || !!permissions["units:read"];
 
   // ── Org list state ────────────────────────────────────────────────────────
   const [orgs, setOrgs] = useState<OrganisationSummary[]>([]);
@@ -319,12 +313,8 @@ export default function OrganisationPage() {
   }, [units, unitPage, unitPerPage, unitIdToName]);
 
   const unitActions = [
-    ...(canUpdateUnit
-      ? [{ name: "edit", onClick: (id: number, row: unknown) => openEditUnit(id, row as UnitSummary) }]
-      : []),
-    ...(canDeleteUnit
-      ? [{ name: "delete", onClick: (id: number, row: unknown) => confirmDeleteUnit(id, row as UnitSummary) }]
-      : []),
+    { name: "edit", onClick: (id: number, row: unknown) => openEditUnit(id, row as UnitSummary), permission: "units:update" },
+    { name: "delete", onClick: (id: number, row: unknown) => confirmDeleteUnit(id, row as UnitSummary), permission: "units:delete" },
   ];
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -339,14 +329,11 @@ export default function OrganisationPage() {
         loading={orgLoading}
         query=""
         base="organisations"
-        addNew={
-          canCreateOrg
-            ? () => {
-                setCreateOrgForm(EMPTY_ORG_CREATE);
-                setCreateOrgOpen(true);
-              }
-            : undefined
-        }
+        addNew={() => {
+          setCreateOrgForm(EMPTY_ORG_CREATE);
+          setCreateOrgOpen(true);
+        }}
+        addNewPermission="organisations:create"
         buttonName="Add Organisation"
         actions={[
           {
@@ -355,13 +342,10 @@ export default function OrganisationPage() {
               const org = row as OrganisationSummary;
               setSelectedOrg(org);
             },
+            permission: "organisations:read",
           },
-          ...(canUpdateOrg
-            ? [{ name: "edit", onClick: (id: number, row: unknown) => openEditOrg(id, row as OrganisationSummary) }]
-            : []),
-          ...(canDeleteOrg
-            ? [{ name: "delete", onClick: (id: number, row: unknown) => confirmDeleteOrg(id, row as OrganisationSummary) }]
-            : []),
+          { name: "edit", onClick: (id: number, row: unknown) => openEditOrg(id, row as OrganisationSummary), permission: "organisations:update" },
+          { name: "delete", onClick: (id: number, row: unknown) => confirmDeleteOrg(id, row as OrganisationSummary), permission: "organisations:delete" },
         ]}
         pagination={{
           currentPage: orgPage,
@@ -389,14 +373,14 @@ export default function OrganisationPage() {
               <span className="text-sm text-gray-400 dark:text-gray-500">— Units</span>
             </div>
             <div className="flex items-center gap-3">
-              {canCreateUnit && (
+              <PermissionGate permission="units:create">
                 <button
                   onClick={openCreateUnit}
                   className="px-3 py-1.5 rounded bg-blue-700 text-white text-sm hover:bg-blue-800"
                 >
                   + Add Unit
                 </button>
-              )}
+              </PermissionGate>
               <button
                 onClick={() => setSelectedOrg(null)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -422,21 +406,21 @@ export default function OrganisationPage() {
             ) : units.length === 0 ? (
               <p className="text-sm text-gray-400 py-6 text-center">
                 No units yet.{" "}
-                {canCreateUnit && (
+                <PermissionGate permission="units:create">
                   <button
                     onClick={openCreateUnit}
                     className="text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Add the first one.
                   </button>
-                )}
+                </PermissionGate>
               </p>
             ) : unitTab === "tree" ? (
               <div className="overflow-x-auto">
                 <UnitTree
                   nodes={unitTree}
-                  onEdit={canUpdateUnit ? openEditUnit : undefined}
-                  onDelete={canDeleteUnit ? confirmDeleteUnit : undefined}
+                  onEdit={openEditUnit}
+                  onDelete={confirmDeleteUnit}
                 />
               </div>
             ) : (
@@ -447,6 +431,9 @@ export default function OrganisationPage() {
                 loading={false}
                 query=""
                 base="units"
+                addNew={openCreateUnit}
+                addNewPermission="units:create"
+                buttonName="Add Unit"
                 actions={unitActions}
                 pagination={{
                   currentPage: unitPage,
@@ -534,8 +521,8 @@ function UnitTree({
 }: {
   nodes: UnitNode[];
   depth?: number;
-  onEdit?: (id: number, row: UnitSummary) => void;
-  onDelete?: (id: number, row: UnitSummary) => void;
+  onEdit: (id: number, row: UnitSummary) => void;
+  onDelete: (id: number, row: UnitSummary) => void;
 }) {
   return (
     <ul className="space-y-0.5">
@@ -560,8 +547,8 @@ function UnitTreeNode({
 }: {
   node: UnitNode;
   depth: number;
-  onEdit?: (id: number, row: UnitSummary) => void;
-  onDelete?: (id: number, row: UnitSummary) => void;
+  onEdit: (id: number, row: UnitSummary) => void;
+  onDelete: (id: number, row: UnitSummary) => void;
 }) {
   const [open, setOpen] = useState(true);
   const hasChildren = node.children.length > 0;
@@ -604,22 +591,22 @@ function UnitTreeNode({
         </span>
 
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onEdit && (
+          <PermissionGate permission="units:update">
             <button
               onClick={() => onEdit(node.id, node)}
               className="px-2 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Edit
             </button>
-          )}
-          {onDelete && (
+          </PermissionGate>
+          <PermissionGate permission="units:delete">
             <button
               onClick={() => onDelete(node.id, node)}
               className="px-2 py-0.5 text-xs rounded border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
               Delete
             </button>
-          )}
+          </PermissionGate>
         </div>
       </div>
 

@@ -1,4 +1,3 @@
-import { AxiosResponse } from "axios";
 import { TableActionIcon } from "./action";
 
 export default function DeleteButton({
@@ -6,20 +5,20 @@ export default function DeleteButton({
   fun,
   query,
   name,
-  brokerId
+  permission,
 }: {
   id: number;
-  fun: (id: number) => Promise<AxiosResponse<any, any, {}>>;
+  fun: (id: number, value?: any) => Promise<any> | void;
   query?: string;
   name?: string;
-  brokerId?: number
+  permission?: string;
 }) {
-  return(
-  <TableActionIcon
-    action={{ name: "Delete", onClick: fun}}
-    row={{ id, name, brokerId }}
-    query={query}
-    tabelName={name + "s"}
-  />
-  )
+  return (
+    <TableActionIcon
+      action={{ name: "Delete", onClick: fun, permission }}
+      row={{ id, name }}
+      query={query}
+      tabelName={name ? name + "s" : undefined}
+    />
+  );
 }

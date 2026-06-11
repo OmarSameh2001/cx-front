@@ -50,43 +50,41 @@ export default function DashboardPage() {
   }, [items, tab]);
 
   return (
-    <div className="flex-1 min-h-screen bg-muted/40">
-      <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-6">
-        <header>
-          <h1 className="text-2xl font-semibold text-foreground">My forms</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Forms assigned to you. Pick one up where you left off, or review what
-            you&apos;ve submitted.
-          </p>
-        </header>
+    <div className="flex-1 min-w-0 min-h-screen p-6 flex flex-col gap-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-foreground">My forms</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Forms assigned to you. Pick one up where you left off, or review what
+          you&apos;ve submitted.
+        </p>
+      </header>
 
-        <div className="flex gap-2 border-b border-border">
-          <TabButton active={tab === "open"} onClick={() => setTab("open")}>
-            Open to answer
-          </TabButton>
-          <TabButton active={tab === "done"} onClick={() => setTab("done")}>
-            Completed
-          </TabButton>
-        </div>
-
-        {loading ? (
-          <div className="rounded-lg bg-card text-card-foreground border border-border p-10 text-center text-sm text-muted-foreground">
-            Loading...
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-lg bg-card text-card-foreground border border-border p-10 text-center text-sm text-muted-foreground">
-            {tab === "open"
-              ? "No forms waiting for you."
-              : "You haven't submitted anything yet."}
-          </div>
-        ) : (
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-            {filtered.map((f) => (
-              <FormCard key={f.id} form={f} tab={tab} />
-            ))}
-          </div>
-        )}
+      <div className="flex gap-2 border-b border-border">
+        <TabButton active={tab === "open"} onClick={() => setTab("open")}>
+          Open to answer
+        </TabButton>
+        <TabButton active={tab === "done"} onClick={() => setTab("done")}>
+          Completed
+        </TabButton>
       </div>
+
+      {loading ? (
+        <div className="rounded-lg bg-card text-card-foreground border border-border p-10 text-center text-sm text-muted-foreground">
+          Loading...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-lg bg-card text-card-foreground border border-border p-10 text-center text-sm text-muted-foreground">
+          {tab === "open"
+            ? "No forms waiting for you."
+            : "You haven't submitted anything yet."}
+        </div>
+      ) : (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((f) => (
+            <FormCard key={f.id} form={f} tab={tab} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

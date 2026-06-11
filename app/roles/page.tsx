@@ -307,14 +307,11 @@ export default function RolesPage() {
             setCreateRoleForm(EMPTY_ROLE);
             setCreateRoleOpen(true);
           }}
+          addNewPermission="roles:create"
           buttonName="Add Role"
           actions={[
-            { name: "edit", onClick: (id) => openEditRole(id) },
-            {
-              name: "delete",
-              onClick: (id, row) =>
-                confirmDeleteRole(id, row as RoleSummary),
-            },
+            { name: "edit", onClick: (id) => openEditRole(id), permission: "roles:update" },
+            { name: "delete", onClick: (id, row) => confirmDeleteRole(id, row as RoleSummary), permission: "roles:delete" },
           ]}
           pagination={{
             currentPage: rolePage,
@@ -352,12 +349,13 @@ export default function RolesPage() {
               setCreatePermForm(EMPTY_PERMISSION);
               setCreatePermOpen(true);
             }}
+            addNewPermission="roles:create"
             buttonName="Add Permission"
             actions={[
               {
                 name: "delete",
-                onClick: (id, row) =>
-                  confirmDeletePermission(id, row as PermissionRead),
+                onClick: (id, row) => confirmDeletePermission(id, row as PermissionRead),
+                permission: "roles:delete",
               },
             ]}
             pagination={{

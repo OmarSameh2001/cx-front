@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import Table from "@/components/table/table";
+import { UnitsMultiSelect } from "@/components/units-multi-select";
 import { EmployeeService } from "@/services/employee/employee";
 import { LookupService } from "@/services/lookup/lookup";
 import type {
@@ -11,6 +12,11 @@ import type {
   EmployeeUpdate,
 } from "@/dto/employee/employee";
 import type { LookupResult } from "@/dto/lookup/lookup";
+import {
+  showConfirmToast,
+  showSuccessToast,
+  showErrorToast,
+} from "@/utils/toaster/toaster";
 
 const employeeService = new EmployeeService();
 const lookupService = new LookupService();
@@ -62,8 +68,11 @@ export default function EmployeesPage() {
   const [updating, setUpdating] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [assignUnitsOpen, setAssignUnitsOpen] = useState(false);
+  const [assignUnitsEmployee, setAssignUnitsEmployee] = useState<EmployeeSummary | null>(null);
+  const [assignUnitsSelected, setAssignUnitsSelected] = useState<LookupResult[]>([]);
+  const [assignUnitsSaving, setAssignUnitsSaving] = useState(false);
+
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -147,18 +156,59 @@ export default function EmployeesPage() {
     }
   }
 
-  async function confirmDelete() {
-    if (deleteId === null) return;
-    setDeleting(true);
+  async function openAssignUnits(employee: EmployeeSummary) {
+    setAssignUnitsEmployee(employee);
+    setAssignUnitsOpen(true);
     try {
-      await employeeService.remove(deleteId);
-      setDeleteId(null);
-      fetchEmployees();
+      const allUnits = await lookupService.units();
+      const assignedSet = new Set(employee.assigned_units);
+      const excluded = employee.unit_id ?? -1;
+      setAssignUnitsSelected(
+        allUnits.filter((u) => assignedSet.has(u.id) && u.id !== excluded)
+      );
     } catch {
-      // keep dialog open on error
-    } finally {
-      setDeleting(false);
+      setAssignUnitsSelected([]);
     }
+  }
+
+  async function handleSaveAssignedUnits() {
+    if (!assignUnitsEmployee) return;
+    setAssignUnitsSaving(true);
+    try {
+      await employeeService.update(assignUnitsEmployee.id, {
+        assigned_units: assignUnitsSelected.map((u) => u.id),
+      });
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e.id === assignUnitsEmployee.id
+            ? { ...e, assigned_units: assignUnitsSelected.map((u) => u.id) }
+            : e
+        )
+      );
+      setAssignUnitsOpen(false);
+      showSuccessToast("Assigned units updated.");
+    } catch {
+      showErrorToast("Failed to update assigned units.");
+    } finally {
+      setAssignUnitsSaving(false);
+    }
+  }
+
+  function handleDelete(id: number) {
+    showConfirmToast({
+      title: "Delete employee",
+      message: "Are you sure you want to delete this employee?",
+      confirmText: "Delete",
+      onConfirm: async () => {
+        try {
+          await employeeService.remove(id);
+          showSuccessToast("Employee deleted.");
+          fetchEmployees();
+        } catch {
+          showErrorToast("Failed to delete employee.");
+        }
+      },
+    });
   }
 
   const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
@@ -191,10 +241,12 @@ export default function EmployeesPage() {
           setCreateOpen(true);
           ensureLookups();
         }}
+        addNewPermission="employees:create"
         buttonName="Add Employee"
         actions={[
-          { name: "edit", onClick: (id, row) => openEdit(id, row as EmployeeSummary) },
-          { name: "delete", onClick: (id) => setDeleteId(id) },
+          { name: "edit", onClick: (id, row) => openEdit(id, row as EmployeeSummary), permission: "employees:update" },
+          { name: "select", onClick: (_id, row) => openAssignUnits(row as EmployeeSummary), permission: "employees:update" },
+          { name: "delete", onClick: (id) => handleDelete(id), permission: "employees:delete" },
         ]}
         pagination={{
           currentPage,
@@ -208,32 +260,6 @@ export default function EmployeesPage() {
           },
         }}
       />
-
-      {/* Delete confirmation dialog */}
-      {deleteId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <p className="mb-5 text-gray-800 dark:text-gray-100">
-              Are you sure you want to delete this employee?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="px-4 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create modal */}
       {createOpen && (
@@ -268,6 +294,40 @@ export default function EmployeesPage() {
             onCancel={() => setEditOpen(false)}
             submitLabel="Save"
           />
+        </Modal>
+      )}
+
+      {/* Assign units modal */}
+      {assignUnitsOpen && assignUnitsEmployee && (
+        <Modal
+          title={`Assign Units — ${assignUnitsEmployee.first_name} ${assignUnitsEmployee.last_name}`}
+          onClose={() => setAssignUnitsOpen(false)}
+        >
+          <div className="space-y-4 px-6 pb-6 pt-2">
+            <p className="text-sm text-muted-foreground">
+              Select which units this employee can access. Their home unit is not shown here.
+            </p>
+            <UnitsMultiSelect
+              value={assignUnitsSelected}
+              onChange={setAssignUnitsSelected}
+              excludeIds={assignUnitsEmployee.unit_id ? [assignUnitsEmployee.unit_id] : []}
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setAssignUnitsOpen(false)}
+                className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAssignedUnits}
+                disabled={assignUnitsSaving}
+                className="px-4 py-2 rounded bg-blue-700 text-white text-sm hover:bg-blue-800 disabled:opacity-50"
+              >
+                {assignUnitsSaving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

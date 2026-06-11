@@ -27,15 +27,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const p = localStorage.getItem('permissions');
-        const u = localStorage.getItem('user');
-        if (p) setPermissions(JSON.parse(p));
-        if (u) {
-            const parsed = JSON.parse(u);
-            setUser(parsed);
-            setIsAdmin(parsed.role?.toLowerCase() === 'admin');
+        try {
+            const p = localStorage.getItem('permissions');
+            const u = localStorage.getItem('user');
+            if (p) setPermissions(JSON.parse(p));
+            if (u) {
+                const parsed = JSON.parse(u);
+                setUser(parsed);
+                setIsAdmin(parsed.role?.toLowerCase() === 'admin');
+            }
+        } catch {
+            localStorage.removeItem('permissions');
+            localStorage.removeItem('user');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, []);
 
     function setAuth(perms: Record<string, true>, userData: Omit<UserResponse, 'permissions'>) {

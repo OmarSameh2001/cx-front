@@ -1,11 +1,12 @@
 "use client";
 import { TableColumn } from "./parts/column";
-import { usePathname, useRouter } from "next/navigation";
 import { TableProps } from "../../dto/table/table";
 import CustomPagination from "./parts/pagination";
 // import LoadingPage from "../../_utils/promise_handler/loading/loading";
 import { TableActionIcon } from "./parts/action";
 // import getPathName from "../../_utils/nav_path/pathname";
+import { useAuth } from "@/app/_providers/auth-provider";
+import { PermissionGate } from "@/components/protection/authorization";
 
 function ColumnHeader({ columns }: { columns: any[] }) {
   return (columns ?? []).map((column: any) => (
@@ -23,26 +24,34 @@ function Table({
   loading,
   query,
   addNew,
+  addNewPermission,
   buttonName,
   pagination,
-  base,
 }: TableProps) {
-  const router = useRouter();
-//   const customPath = getPathName(base);
-//   console.log(customPath);
+  const { permissions, isAdmin } = useAuth();
+  const hasVisibleAction = actions?.some(
+    (a) => !a.permission || isAdmin || !!permissions[a.permission]
+  ) ?? false;
+
+  const addNewButton = addNew ? (
+    <button
+      className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded cursor-pointer"
+      onClick={addNew}
+    >
+      {buttonName || `Add New ${name || ""}`}
+    </button>
+  ) : null;
+
   return (
     <div className="col-span-full xl:col-span-6 bg-card shadow-xs rounded-xl border border-border overflow-hidden">
       <header className="px-4 xs:px-7 py-5 border-b border-border flex items-center justify-between">
         <h2 className="font-semibold text-xl text-card-foreground">
           {name || "Table"}
         </h2>
-        {addNew && (
-          <button
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded cursor-pointer"
-            onClick={addNew}
-          >
-            {buttonName || `Add New ${name || ""}`}
-          </button>
+        {addNewButton && addNewPermission ? (
+          <PermissionGate permission={addNewPermission}>{addNewButton}</PermissionGate>
+        ) : (
+          addNewButton
         )}
       </header>
       <div className="p-3">
@@ -54,7 +63,7 @@ function Table({
               <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
                   <ColumnHeader columns={columns} />
-                  {actions?.length && actions?.length > 0 ? (
+                  {hasVisibleAction ? (
                     <th className="p-2 whitespace-nowrap">
                       <span className="font-semibold text-left">Actions</span>
                     </th>
@@ -93,7 +102,7 @@ function Table({
                         )}
                       </td>
                     ))}
-                    {actions && actions.length > 0 && (
+                    {hasVisibleAction && (
                       <td className="p-2 whitespace-nowrap flex gap-2 items-center justify-center">
                         {actions?.map((action, index) => (
                           <TableActionIcon

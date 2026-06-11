@@ -24,6 +24,7 @@ export interface TableActionButton {
     id: number,
     value?: any
   ) => Promise<any> | void;
+  permission?: string;
 }
 
 export interface PaginationProps {
@@ -42,6 +43,7 @@ export interface TableProps {
   loading: boolean;
   query: string;
   addNew?: () => void;
+  addNewPermission?: string;
   buttonName?: string;
   pagination: PaginationProps;
   base: string;
