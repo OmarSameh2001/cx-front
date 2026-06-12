@@ -3,6 +3,8 @@ import { AtSign, BrainCircuit, Building, ChartColumn, ClipboardList, Form, Layou
 import { AuthService } from "@/services/auth/auth";
 import Link from "next/link";
 import { useAuth } from "@/app/_providers/auth-provider";
+import { useNavigationGuard } from "@/app/_providers/navigation-guard-provider";
+import { showWarningToast } from "@/utils/toaster/toaster";
 import { ThemeToggle } from "../../theme-toggle/theme";
 
 type icon = React.ReactNode;
@@ -64,11 +66,16 @@ const authService = new AuthService();
 
 export default function SideBar() {
     const { permissions, isAdmin, user, loading, clearAuth } = useAuth();
+    const { isGuarded } = useNavigationGuard();
 
     const hasPermission = (permission: string) =>
         isAdmin || Object.keys(permissions).some(k => k.startsWith(permission + ':'));
 
     async function handleLogout() {
+        if (isGuarded) {
+            showWarningToast("You cannot leave the exam while it is in progress.");
+            return;
+        }
         await authService.logout();
         clearAuth();
     }

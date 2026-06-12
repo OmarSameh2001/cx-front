@@ -98,9 +98,11 @@ export default function FormEditPage({
   const [fields, setFields] = useState<FormField[]>([]);
   const [sections, setSections] = useState<FormSection[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [scoringMode, setScoringMode] = useState<"weight" | "percentage">("weight");
 
   const hasUnits = selectedUnits.length > 0;
   const hasSections = sections.length > 0;
+  const totalSectionWeight = sections.reduce((s, sec) => s + sec.score_weight, 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -628,13 +630,49 @@ export default function FormEditPage({
             </header>
 
             {/* ── sections toolbar ── */}
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between px-1 flex-wrap gap-2">
               <span className="text-sm text-muted-foreground">
                 {hasSections
                   ? `${sections.length} section${sections.length !== 1 ? "s" : ""}`
                   : "Flat layout"}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {formType === "exam" && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Scoring</span>
+                    <div className="flex items-center rounded-md border border-border overflow-hidden text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setScoringMode("weight")}
+                        className={[
+                          "px-3 py-1.5 transition-colors",
+                          scoringMode === "weight"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:bg-muted/60",
+                        ].join(" ")}
+                      >
+                        Points
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScoringMode("percentage")}
+                        className={[
+                          "px-3 py-1.5 transition-colors",
+                          scoringMode === "percentage"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:bg-muted/60",
+                        ].join(" ")}
+                      >
+                        %
+                      </button>
+                    </div>
+                    {scoringMode === "percentage" && hasSections && (
+                      <span className={["text-xs", totalSectionWeight > 100 ? "text-destructive" : "text-muted-foreground"].join(" ")}>
+                        {totalSectionWeight}% / 100%
+                      </span>
+                    )}
+                  </div>
+                )}
                 {hasSections && (
                   <button
                     type="button"
@@ -675,6 +713,8 @@ export default function FormEditPage({
                           .filter((f) => f.section_id === section.id)
                           .sort((a, b) => a.order - b.order)}
                         isExam={formType === "exam"}
+                        scoringMode={scoringMode}
+                        maxWeight={scoringMode === "percentage" ? 100 - (totalSectionWeight - section.score_weight) : undefined}
                         activeFieldId={activeId}
                         onUpdateSection={(patch) =>
                           updateSection(section.id, patch)
@@ -712,6 +752,8 @@ export default function FormEditPage({
                           key={field.id}
                           field={field}
                           isActive={activeId === field.id}
+                          isExam={formType === "exam"}
+                          scoringMode={scoringMode}
                           onFocus={() => setActiveId(field.id)}
                           onChange={(patch) => updateField(field.id, patch)}
                           onDelete={() => deleteField(field.id)}

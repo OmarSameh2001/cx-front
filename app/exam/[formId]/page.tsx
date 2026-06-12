@@ -14,6 +14,7 @@ import {
   showSuccessToast,
   showWarningToast,
 } from "@/utils/toaster/toaster";
+import { useNavigationGuard } from "@/app/_providers/navigation-guard-provider";
 
 const formService = new FormService();
 const submissionService = new SubmissionService();
@@ -35,6 +36,8 @@ export default function ExamPage({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  const { setGuarded } = useNavigationGuard();
 
   const dirtyRef = useRef(false);
   const answersRef = useRef<Record<string, unknown>>({});
@@ -114,7 +117,7 @@ export default function ExamPage({
     };
   }, [router]);
 
-  // --- beforeunload warning while in progress ---
+  // --- block tab close / refresh while in progress ---
   useEffect(() => {
     function onUnload(e: BeforeUnloadEvent) {
       if (submissionRef.current?.status !== "in_progress") return;
@@ -124,6 +127,41 @@ export default function ExamPage({
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
+
+  // --- block browser back button while in progress ---
+  useEffect(() => {
+    if (submission?.status !== "in_progress") return;
+    window.history.pushState(null, "", window.location.href);
+    function onPopState() {
+      window.history.pushState(null, "", window.location.href);
+      showWarningToast("You cannot leave the exam while it is in progress.");
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [submission?.status]);
+
+  // --- activate/deactivate the global navigation guard ---
+  useEffect(() => {
+    const active = submission?.status === "in_progress";
+    setGuarded(active);
+    return () => setGuarded(false);
+  }, [submission?.status, setGuarded]);
+
+  // --- block sidebar / all link navigation while in progress ---
+  useEffect(() => {
+    if (submission?.status !== "in_progress") return;
+    function onLinkClick(e: MouseEvent) {
+      const anchor = (e.target as Element).closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || href === "#" || href === window.location.pathname) return;
+      e.preventDefault();
+      e.stopPropagation();
+      showWarningToast("You cannot leave the exam while it is in progress.");
+    }
+    document.addEventListener("click", onLinkClick, true);
+    return () => document.removeEventListener("click", onLinkClick, true);
+  }, [submission?.status]);
 
   // --- autosave loop ---
   const saveDraft = useCallback(async () => {
@@ -238,7 +276,13 @@ export default function ExamPage({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={() => {
+              if (submission.status === "in_progress") {
+                showWarningToast("You cannot leave the exam while it is in progress.");
+                return;
+              }
+              router.push("/dashboard");
+            }}
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />

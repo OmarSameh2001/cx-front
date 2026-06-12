@@ -26,6 +26,9 @@ interface Props {
   section: FormSection;
   fields: FormField[];
   isExam: boolean;
+  scoringMode?: "weight" | "percentage";
+  /** Max allowed score_weight for this section (percentage mode only). */
+  maxWeight?: number;
   activeFieldId: string | null;
   onUpdateSection: (patch: Partial<FormSection>) => void;
   onDeleteSection: () => void;
@@ -37,10 +40,14 @@ interface Props {
   onReorderFields: (reorderedFields: FormField[]) => void;
 }
 
+const GRADABLE_TYPES = ["single_choice", "multi_choice", "boolean"];
+
 export default function SectionCard({
   section,
   fields,
   isExam,
+  scoringMode = "weight",
+  maxWeight,
   activeFieldId,
   onUpdateSection,
   onDeleteSection,
@@ -51,6 +58,8 @@ export default function SectionCard({
   onFocusField,
   onReorderFields,
 }: Props) {
+  const gradableFields = fields.filter((f) => GRADABLE_TYPES.includes(f.type));
+  const totalFieldScore = gradableFields.reduce((s, f) => s + f.score_weight, 0);
   const {
     attributes,
     listeners,
@@ -123,23 +132,49 @@ export default function SectionCard({
             </div>
 
             {isExam && (
-              <label className="flex flex-col gap-1 min-w-[140px]">
-                <span className="text-xs text-muted-foreground">
-                  Section weight
-                </span>
-                <input
-                  type="number"
-                  step="1"
-                  min={1}
-                  value={section.score_weight}
-                  onChange={(e) =>
-                    onUpdateSection({
-                      score_weight: Math.max(1, Number(e.target.value) || 1),
-                    })
-                  }
-                  className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
-                />
-              </label>
+              <div className="flex flex-col gap-1 min-w-[160px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {scoringMode === "percentage" ? "Section %" : "Section weight"}
+                  </span>
+                  {scoringMode === "percentage" && gradableFields.length > 0 && (
+                    <span className={["text-xs", totalFieldScore > 100 ? "text-destructive" : "text-muted-foreground"].join(" ")}>
+                      Q: {totalFieldScore}%
+                    </span>
+                  )}
+                </div>
+                {scoringMode === "percentage" ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="1"
+                      min={0}
+                      max={maxWeight ?? 100}
+                      value={section.score_weight}
+                      onChange={(e) =>
+                        onUpdateSection({
+                          score_weight: Math.min(maxWeight ?? 100, Math.max(0, Number(e.target.value) || 0)),
+                        })
+                      }
+                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    step="1"
+                    min={1}
+                    value={section.score_weight}
+                    onChange={(e) =>
+                      onUpdateSection({
+                        score_weight: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                    className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                  />
+                )}
+              </div>
             )}
 
             <button
@@ -173,6 +208,9 @@ export default function SectionCard({
                 onDelete={() => onDeleteField(field.id)}
                 onDuplicate={() => onDuplicateField(field.id)}
                 isActive={activeFieldId === field.id}
+                isExam={isExam}
+                scoringMode={scoringMode}
+                maxScore={scoringMode === "percentage" ? 100 - (totalFieldScore - field.score_weight) : undefined}
                 onFocus={() => onFocusField(field.id)}
               />
             ))}

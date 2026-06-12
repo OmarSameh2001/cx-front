@@ -39,6 +39,10 @@ interface Props {
   onDelete: () => void;
   onDuplicate?: () => void;
   isActive?: boolean;
+  isExam?: boolean;
+  scoringMode?: "weight" | "percentage";
+  /** Max allowed score_weight for this field (used in percentage mode to cap at remaining budget). */
+  maxScore?: number;
   onFocus?: () => void;
 }
 
@@ -180,6 +184,9 @@ export default function FieldCard({
   onDelete,
   onDuplicate,
   isActive,
+  isExam,
+  scoringMode = "weight",
+  maxScore,
   onFocus,
 }: Props) {
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
@@ -309,7 +316,7 @@ export default function FieldCard({
         </div>
 
         {/* Grading controls (for auto-gradable types) */}
-        {isActive && isAutoGradable(field.type) && (
+        {isAutoGradable(field.type) && (isActive || isExam) && (
           <div className="flex flex-col gap-2 pt-3 border-t border-border">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Grading
@@ -318,18 +325,35 @@ export default function FieldCard({
               <RightAnswerInput field={field} onChange={onChange} />
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
-                  Score weight
+                  {scoringMode === "percentage" ? "Score %" : "Score weight"}
                 </span>
-                <input
-                  type="number"
-                  step="0.5"
-                  min={0}
-                  value={field.score_weight}
-                  onChange={(e) =>
-                    onChange({ score_weight: Number(e.target.value) || 0 })
-                  }
-                  className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
-                />
+                {scoringMode === "percentage" ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="1"
+                      min={0}
+                      max={maxScore ?? 100}
+                      value={field.score_weight}
+                      onChange={(e) =>
+                        onChange({ score_weight: Math.min(maxScore ?? 100, Math.max(0, Number(e.target.value) || 0)) })
+                      }
+                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                    />
+                    <span className="text-sm text-muted-foreground">%</span>
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    step="0.5"
+                    min={0}
+                    value={field.score_weight}
+                    onChange={(e) =>
+                      onChange({ score_weight: Number(e.target.value) || 0 })
+                    }
+                    className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                  />
+                )}
               </label>
             </div>
           </div>
