@@ -30,6 +30,9 @@ export class SubmissionService extends HttpService {
     form_id?: number;
     mine_only?: boolean;
     status_in?: string;
+    submitter_search?: string;
+    sort_by?: string;
+    sort_dir?: string;
     limit?: number;
     offset?: number;
   }) {

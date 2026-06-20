@@ -66,7 +66,7 @@ export default function MySubmissionsPage() {
         ...s,
         started_at_display: formatDate(s.started_at),
         submitted_at_display: s.submitted_at ? formatDate(s.submitted_at) : "—",
-        score_display: s.score == null ? "—" : String(s.score),
+        score_display: s.score == null ? "—" : `${Math.round(s.score)}/100`,
       })),
     [items]
   );

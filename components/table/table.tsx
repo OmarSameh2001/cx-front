@@ -8,12 +8,35 @@ import { TableActionIcon } from "./parts/action";
 import { useAuth } from "@/app/_providers/auth-provider";
 import { PermissionGate } from "@/components/protection/authorization";
 
-function ColumnHeader({ columns }: { columns: any[] }) {
-  return (columns ?? []).map((column: any) => (
-    <th className="p-2 whitespace-nowrap" key={column.key}>
-      <span className="font-semibold text-left">{column.name}</span>
-    </th>
-  ));
+function ColumnHeader({
+  columns,
+  sort,
+  onSort,
+}: {
+  columns: any[];
+  sort?: { key: string; dir: "asc" | "desc" };
+  onSort?: (key: string) => void;
+}) {
+  return (columns ?? []).map((column: any) => {
+    const isSorted = sort?.key === column.key;
+    const sortable = !!onSort && column.sortable !== false && column.key !== "id";
+    return (
+      <th
+        key={column.key}
+        className={`p-2 whitespace-nowrap${sortable ? " cursor-pointer select-none" : ""}`}
+        onClick={sortable ? () => onSort!(column.key) : undefined}
+      >
+        <span className="font-semibold text-left inline-flex items-center gap-1">
+          {column.name}
+          {sortable && (
+            <span className="text-xs">
+              {isSorted ? (sort!.dir === "asc" ? "↑" : "↓") : "↕"}
+            </span>
+          )}
+        </span>
+      </th>
+    );
+  });
 }
 
 function Table({
@@ -27,6 +50,8 @@ function Table({
   addNewPermission,
   buttonName,
   pagination,
+  sort,
+  onSort,
 }: TableProps) {
   const { permissions, isAdmin } = useAuth();
   const hasVisibleAction = actions?.some(
@@ -62,7 +87,7 @@ function Table({
               {/* Table header */}
               <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
-                  <ColumnHeader columns={columns} />
+                  <ColumnHeader columns={columns} sort={sort} onSort={onSort} />
                   {hasVisibleAction ? (
                     <th className="p-2 whitespace-nowrap">
                       <span className="font-semibold text-left">Actions</span>
@@ -124,7 +149,7 @@ function Table({
               {/* Table header */}
               <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
-                  <ColumnHeader columns={columns} />
+                  <ColumnHeader columns={columns} sort={sort} onSort={onSort} />
                 </tr>
               </thead>
               {/* Table body */}
@@ -145,7 +170,7 @@ function Table({
               {/* Table header */}
               <thead className="text-xs font-semibold uppercase text-muted-foreground bg-muted">
                 <tr>
-                  <ColumnHeader columns={columns} />
+                  <ColumnHeader columns={columns} sort={sort} onSort={onSort} />
                 </tr>
               </thead>
               {/* Table body */}

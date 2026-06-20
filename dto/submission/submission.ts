@@ -28,6 +28,7 @@ export interface SubmissionRead {
   score: number | null;
   customer_id: number | null;
   user_id: number | null;
+  submitter_name: string | null;
 }
 
 export interface SubmissionDetailField {

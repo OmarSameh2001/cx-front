@@ -35,6 +35,11 @@ export interface PaginationProps {
   itemsPerPage: number;
   setItemsPerPage: (items: number) => void;
 }
+export interface SortState {
+  key: string;
+  dir: "asc" | "desc";
+}
+
 export interface TableProps {
   name: string;
   columns: any[];
@@ -47,5 +52,7 @@ export interface TableProps {
   buttonName?: string;
   pagination: PaginationProps;
   base: string;
+  sort?: SortState;
+  onSort?: (key: string) => void;
 }
 
