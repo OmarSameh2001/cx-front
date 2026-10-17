@@ -20,6 +20,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import type { FormSection } from "@/dto/form/form";
 import type { FormField } from "@/dto/form/form-field";
+import {
+  decodeTarget,
+  encodeTarget,
+  hasActiveBranching,
+  type BranchTarget,
+} from "@/utils/form/branching";
 import FieldCard from "./field-card";
 
 interface Props {
@@ -29,6 +35,13 @@ interface Props {
   scoringMode?: "weight" | "percentage";
   /** Max allowed score_weight for this section (percentage mode only). */
   maxWeight?: number;
+  /** 1-based position, so section numbers in the "go to" pickers are easy to match. */
+  position: number;
+  totalSections: number;
+  /** Later sections plus "End form"; leave undefined where branching isn't allowed (exams). */
+  branchTargets?: BranchTarget[];
+  /** Form has responses: only the title and description can change. */
+  locked?: boolean;
   activeFieldId: string | null;
   onUpdateSection: (patch: Partial<FormSection>) => void;
   onDeleteSection: () => void;
@@ -40,7 +53,8 @@ interface Props {
   onReorderFields: (reorderedFields: FormField[]) => void;
 }
 
-const GRADABLE_TYPES = ["single_choice", "multi_choice", "boolean"];
+// same set the backend scores; text is graded against its reference answer
+const GRADABLE_TYPES = ["single_choice", "multi_choice", "boolean", "text"];
 
 export default function SectionCard({
   section,
@@ -48,6 +62,10 @@ export default function SectionCard({
   isExam,
   scoringMode = "weight",
   maxWeight,
+  position,
+  totalSections,
+  branchTargets,
+  locked,
   activeFieldId,
   onUpdateSection,
   onDeleteSection,
@@ -60,6 +78,9 @@ export default function SectionCard({
 }: Props) {
   const gradableFields = fields.filter((f) => GRADABLE_TYPES.includes(f.type));
   const totalFieldScore = gradableFields.reduce((s, f) => s + f.score_weight, 0);
+  // only one question per section may branch
+  const branchingField = fields.find(hasActiveBranching);
+  const isLastSection = position === totalSections;
   const {
     attributes,
     listeners,
@@ -97,20 +118,25 @@ export default function SectionCard({
     <div ref={setNodeRef} style={style} className="flex flex-col gap-3">
       {/* Section header card */}
       <div className="relative rounded-lg bg-card border border-border shadow-sm">
-        {/* Section drag handle */}
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label="Drag section to reorder"
-          className="absolute top-1 left-1/2 -translate-x-1/2 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing p-1"
-        >
-          <GripVertical className="h-4 w-4 rotate-90" />
-        </button>
+        {/* Section drag handle (section order is structure, frozen when locked) */}
+        {!locked && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label="Drag section to reorder"
+            className="absolute top-1 left-1/2 -translate-x-1/2 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing p-1"
+          >
+            <GripVertical className="h-4 w-4 rotate-90" />
+          </button>
+        )}
 
         <div className="p-5 pt-7 flex flex-col gap-3">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Section {position} of {totalSections}
+          </span>
           <div className="flex items-start gap-3 flex-col md:flex-row">
-            <div className="flex-1 flex flex-col gap-2">
+            <div className="flex-1 w-full flex flex-col gap-2">
               <input
                 type="text"
                 value={section.title}
@@ -148,15 +174,18 @@ export default function SectionCard({
                     <input
                       type="number"
                       step="1"
-                      min={0}
+                      min={1}
                       max={maxWeight ?? 100}
                       value={section.score_weight}
+                      disabled={locked}
                       onChange={(e) =>
                         onUpdateSection({
-                          score_weight: Math.min(maxWeight ?? 100, Math.max(0, Number(e.target.value) || 0)),
+                          // the backend needs a weight above 0; going over the
+                          // remaining budget shows in the red total instead
+                          score_weight: Math.max(1, Math.min(maxWeight ?? 100, Number(e.target.value) || 0)),
                         })
                       }
-                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     <span className="text-sm text-muted-foreground">%</span>
                   </div>
@@ -166,26 +195,54 @@ export default function SectionCard({
                     step="1"
                     min={1}
                     value={section.score_weight}
+                    disabled={locked}
                     onChange={(e) =>
                       onUpdateSection({
                         score_weight: Math.max(1, Number(e.target.value) || 1),
                       })
                     }
-                    className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                    className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 )}
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={onDeleteSection}
-              aria-label="Delete section"
-              className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60 mt-1"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {!locked && (
+              <button
+                type="button"
+                onClick={onDeleteSection}
+                aria-label="Delete section"
+                className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60 mt-1"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
+
+          {branchTargets && (
+            <label className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 pt-1">
+              <span className="text-xs text-muted-foreground shrink-0">
+                After this section, go to
+              </span>
+              <select
+                value={encodeTarget(section.next_section_id)}
+                onChange={(e) =>
+                  onUpdateSection({ next_section_id: decodeTarget(e.target.value) })
+                }
+                disabled={locked}
+                className="w-full sm:w-72 px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {isLastSection ? "Submit form (default)" : "Next section (default)"}
+                </option>
+                {branchTargets.map((t) => (
+                  <option key={encodeTarget(t.value)} value={encodeTarget(t.value)}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
 
@@ -212,19 +269,28 @@ export default function SectionCard({
                 scoringMode={scoringMode}
                 maxScore={scoringMode === "percentage" ? 100 - (totalFieldScore - field.score_weight) : undefined}
                 onFocus={() => onFocusField(field.id)}
+                locked={locked}
+                branchTargets={branchTargets}
+                branchDisabledReason={
+                  branchingField && branchingField.id !== field.id
+                    ? "Another question in this section already branches. Only one question per section can."
+                    : null
+                }
               />
             ))}
           </SortableContext>
         </DndContext>
 
-        <button
-          type="button"
-          onClick={onAddField}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary hover:bg-muted/40 text-sm transition"
-        >
-          <Plus className="h-4 w-4" />
-          Add question
-        </button>
+        {!locked && (
+          <button
+            type="button"
+            onClick={onAddField}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary hover:bg-muted/40 text-sm transition"
+          >
+            <Plus className="h-4 w-4" />
+            Add question
+          </button>
+        )}
       </div>
     </div>
   );

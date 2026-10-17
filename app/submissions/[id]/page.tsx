@@ -131,6 +131,19 @@ function FieldReveal({
   field: SubmissionDetailField;
   answer: unknown;
 }) {
+  // set by the backend for finalized submissions only
+  if (field.skipped) {
+    return (
+      <div className="rounded-lg bg-muted/40 text-card-foreground border border-dashed border-border p-5 flex flex-col gap-2">
+        <p className="text-sm font-medium text-muted-foreground">
+          {idx + 1}. {field.question ?? `Question ${idx + 1}`}
+        </p>
+        <p className="text-xs text-muted-foreground italic">
+          Not shown to the respondent (skipped by branching).
+        </p>
+      </div>
+    );
+  }
   const correct = isCorrect(field, answer);
   return (
     <div className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-2">
@@ -143,7 +156,7 @@ function FieldReveal({
       </p>
       {field.right_answer != null && (
         <p className="text-xs text-muted-foreground">
-          Correct answer:{" "}
+          {field.type === "text" ? "Reference answer" : "Correct answer"}:{" "}
           <span className="text-foreground">{field.right_answer}</span>
         </p>
       )}
@@ -172,6 +185,9 @@ function isCorrect(
   answer: unknown
 ): boolean | null {
   if (field.right_answer == null) return null;
+  // text earns partial credit by similarity (it's in the score), so a
+  // right/wrong verdict from exact matching would mislead
+  if (field.type === "text") return null;
   if (field.type === "multi_choice") {
     const expected = new Set(
       field.right_answer.split(",").map((s) => s.trim()).filter(Boolean)

@@ -41,6 +41,8 @@ export interface SubmissionDetailField {
   options?: string[] | null;
   right_answer?: string | null;
   help_text?: string | null;
+  // on a section the respondent's branching path skipped (finalized only)
+  skipped?: boolean;
 }
 
 export interface SubmissionDetail extends SubmissionRead {

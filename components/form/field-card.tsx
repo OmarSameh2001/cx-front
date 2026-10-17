@@ -32,6 +32,13 @@ import PhoneField from "./fields/phone/phone";
 import EmailField from "./fields/email/email";
 import FileField from "./fields/file/file";
 import ScaleField from "./fields/scale/scale";
+import BranchingEditor from "./branching-editor";
+import {
+  hasActiveBranching,
+  isBranchable,
+  type BranchTarget,
+  type OptionRename,
+} from "@/utils/form/branching";
 
 interface Props {
   field: FormField;
@@ -44,6 +51,12 @@ interface Props {
   /** Max allowed score_weight for this field (used in percentage mode to cap at remaining budget). */
   maxScore?: number;
   onFocus?: () => void;
+  /** Form has responses: only the question, help text, required flag and order can change. */
+  locked?: boolean;
+  /** Sections this question can jump to; leave undefined where branching isn't allowed. */
+  branchTargets?: BranchTarget[];
+  /** Set when another question in the same section already branches. */
+  branchDisabledReason?: string | null;
 }
 
 const TYPE_ICONS: Record<FieldType, React.ComponentType<{ className?: string }>> = {
@@ -58,16 +71,25 @@ const TYPE_ICONS: Record<FieldType, React.ComponentType<{ className?: string }>>
   scale: BarChart3,
 };
 
+// text is scored by its similarity to a reference answer
 function isAutoGradable(type: FieldType): boolean {
-  return type === "single_choice" || type === "multi_choice" || type === "boolean";
+  return (
+    type === "single_choice" ||
+    type === "multi_choice" ||
+    type === "boolean" ||
+    type === "text"
+  );
 }
 
 function RightAnswerInput({
   field,
   onChange,
+  renaming,
 }: {
   field: FormField;
   onChange: (patch: Partial<FormField>) => void;
+  /** Option being edited: the answer still stores its old text until blur. */
+  renaming?: OptionRename | null;
 }) {
   if (field.type === "boolean") {
     const value = field.right_answer ?? "";
@@ -88,7 +110,8 @@ function RightAnswerInput({
   }
   if (field.type === "single_choice") {
     const options = field.options ?? [];
-    const value = field.right_answer ?? "";
+    const value =
+      renaming && field.right_answer === renaming.from ? renaming.to : field.right_answer ?? "";
     return (
       <label className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Correct answer</span>
@@ -98,8 +121,9 @@ function RightAnswerInput({
           className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
         >
           <option value="">—</option>
-          {options.map((o) => (
-            <option key={o} value={o}>
+          {/* options can briefly share a text while one is being renamed */}
+          {options.map((o, i) => (
+            <option key={i} value={o}>
               {o}
             </option>
           ))}
@@ -109,10 +133,12 @@ function RightAnswerInput({
   }
   if (field.type === "multi_choice") {
     const options = field.options ?? [];
+    const shown = (answer: string) =>
+      renaming && answer === renaming.from.trim() ? renaming.to.trim() : answer;
     const selected = new Set(
       (field.right_answer ?? "")
         .split(",")
-        .map((s) => s.trim())
+        .map((s) => shown(s.trim()))
         .filter(Boolean)
     );
     const toggle = (opt: string) => {
@@ -127,10 +153,10 @@ function RightAnswerInput({
           Correct answers (any of)
         </span>
         <div className="flex flex-wrap gap-1">
-          {options.map((o) => (
+          {options.map((o, i) => (
             <button
               type="button"
-              key={o}
+              key={i}
               onClick={() => toggle(o)}
               className={[
                 "px-2 py-1 rounded-full text-xs border",
@@ -146,21 +172,57 @@ function RightAnswerInput({
       </div>
     );
   }
+  if (field.type === "text") {
+    return (
+      <label className="flex flex-col gap-1 sm:col-span-2">
+        <span className="text-xs text-muted-foreground">Reference answer</span>
+        <textarea
+          value={field.right_answer ?? ""}
+          onChange={(e) => onChange({ right_answer: e.target.value || undefined })}
+          rows={2}
+          placeholder="A model answer to score responses against"
+          className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary resize-y"
+        />
+        <span className="text-xs text-muted-foreground">
+          Answers earn partial credit by how close they are to this in wording
+          and meaning (English). Leave empty to not grade this question.
+        </span>
+      </label>
+    );
+  }
   return null;
 }
 
 function FieldBody({
   field,
   onChange,
+  locked,
+  onRenaming,
 }: {
   field: FormField;
   onChange: (patch: Partial<FormField>) => void;
+  locked?: boolean;
+  onRenaming?: (rename: OptionRename | null) => void;
 }) {
   switch (field.type) {
     case "single_choice":
-      return <SingleChoice field={field} onChange={onChange} />;
+      return (
+        <SingleChoice
+          field={field}
+          onChange={onChange}
+          locked={locked}
+          onRenaming={onRenaming}
+        />
+      );
     case "multi_choice":
-      return <MultiChoice field={field} onChange={onChange} />;
+      return (
+        <MultiChoice
+          field={field}
+          onChange={onChange}
+          locked={locked}
+          onRenaming={onRenaming}
+        />
+      );
     case "boolean":
       return <BooleanField />;
     case "text":
@@ -188,8 +250,12 @@ export default function FieldCard({
   scoringMode = "weight",
   maxScore,
   onFocus,
+  locked,
+  branchTargets,
+  branchDisabledReason,
 }: Props) {
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState<OptionRename | null>(null);
 
   const {
     attributes,
@@ -207,11 +273,20 @@ export default function FieldCard({
   };
 
   const handleTypeChange = (type: FieldType) => {
-    onChange(withDefaultsForType({ ...field, type }, type));
+    const next = withDefaultsForType({ ...field, type }, type);
+    // rules are keyed by the old type's answers, so they can't carry over
+    if (type !== field.type) next.branching = undefined;
+    // a chosen option isn't a reference answer, nor the other way round
+    if ((type === "text") !== (field.type === "text")) next.right_answer = undefined;
+    onChange(next);
     setTypeMenuOpen(false);
   };
 
   const TypeIcon = TYPE_ICONS[field.type];
+  const showBranching =
+    !!branchTargets &&
+    isBranchable(field.type) &&
+    (isActive || hasActiveBranching(field));
 
   return (
     <div
@@ -263,11 +338,12 @@ export default function FieldCard({
           <div className="relative">
             <button
               type="button"
+              disabled={locked}
               onClick={(e) => {
                 e.stopPropagation();
                 setTypeMenuOpen((v) => !v);
               }}
-              className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-background hover:bg-muted/60 text-sm text-foreground min-w-[180px]"
+              className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-background hover:bg-muted/60 text-sm text-foreground min-w-[180px] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-background"
             >
               <TypeIcon className="h-4 w-4 text-muted-foreground" />
               <span className="flex-1 text-left">
@@ -310,58 +386,76 @@ export default function FieldCard({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="pl-1">
-          <FieldBody field={field} onChange={onChange} />
-        </div>
+        {/* Options, grading and branching are structure: frozen when locked */}
+        <fieldset disabled={locked} className="min-w-0 flex flex-col gap-4">
+          {/* Body */}
+          <div className="pl-1">
+            <FieldBody
+              field={field}
+              onChange={onChange}
+              locked={locked}
+              onRenaming={setRenaming}
+            />
+          </div>
 
-        {/* Grading controls (for auto-gradable types) */}
-        {isAutoGradable(field.type) && (isActive || isExam) && (
-          <div className="flex flex-col gap-2 pt-3 border-t border-border">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Grading
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <RightAnswerInput field={field} onChange={onChange} />
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  {scoringMode === "percentage" ? "Score %" : "Score weight"}
-                </span>
-                {scoringMode === "percentage" ? (
-                  <div className="flex items-center gap-1">
+          {/* Grading controls (auto-gradable types, exams only) */}
+          {isAutoGradable(field.type) && isExam && (
+            <div className="flex flex-col gap-2 pt-3 border-t border-border">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Grading
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <RightAnswerInput field={field} onChange={onChange} renaming={renaming} />
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {scoringMode === "percentage" ? "Score %" : "Score weight"}
+                  </span>
+                  {scoringMode === "percentage" ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="1"
+                        min={0}
+                        max={maxScore ?? 100}
+                        value={field.score_weight}
+                        onChange={(e) =>
+                          onChange({ score_weight: Math.min(maxScore ?? 100, Math.max(0, Number(e.target.value) || 0)) })
+                        }
+                        className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  ) : (
                     <input
                       type="number"
-                      step="1"
+                      step="0.5"
                       min={0}
-                      max={maxScore ?? 100}
                       value={field.score_weight}
                       onChange={(e) =>
-                        onChange({ score_weight: Math.min(maxScore ?? 100, Math.max(0, Number(e.target.value) || 0)) })
+                        onChange({ score_weight: Number(e.target.value) || 0 })
                       }
-                      className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
+                      className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
                     />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                ) : (
-                  <input
-                    type="number"
-                    step="0.5"
-                    min={0}
-                    value={field.score_weight}
-                    onChange={(e) =>
-                      onChange({ score_weight: Number(e.target.value) || 0 })
-                    }
-                    className="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground outline-none focus:border-primary"
-                  />
-                )}
-              </label>
+                  )}
+                </label>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {showBranching && (
+            <BranchingEditor
+              field={field}
+              targets={branchTargets!}
+              disabledReason={branchDisabledReason}
+              renaming={renaming}
+              onChange={onChange}
+            />
+          )}
+        </fieldset>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-1 pt-3 border-t border-border">
-          {onDuplicate && (
+          {onDuplicate && !locked && (
             <button
               type="button"
               onClick={(e) => {
@@ -374,44 +468,52 @@ export default function FieldCard({
               <Copy className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            aria-label="Delete"
-            className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {!locked && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                aria-label="Delete"
+                className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted/60"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
 
-          <div className="mx-2 h-6 w-px bg-border" />
+              <div className="mx-2 h-6 w-px bg-border" />
+            </>
+          )}
 
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-sm text-foreground">Required</span>
-            <span
-              className={[
-                "relative inline-flex h-5 w-9 rounded-full transition-colors",
-                field.is_required ? "bg-primary" : "bg-muted",
-              ].join(" ")}
-            >
-              <input
-                type="checkbox"
-                checked={field.is_required}
-                onChange={(e) =>
-                  onChange({ is_required: e.target.checked })
-                }
-                className="sr-only"
-              />
+          {/* exam questions are never required: a timed exam must be able to
+              auto-submit with blanks, which simply score 0 */}
+          {!isExam && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-sm text-foreground">Required</span>
               <span
                 className={[
-                  "absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform",
-                  field.is_required ? "translate-x-4" : "translate-x-0.5",
+                  "relative inline-flex h-5 w-9 rounded-full transition-colors",
+                  field.is_required ? "bg-primary" : "bg-muted",
                 ].join(" ")}
-              />
-            </span>
-          </label>
+              >
+                <input
+                  type="checkbox"
+                  checked={field.is_required}
+                  onChange={(e) =>
+                    onChange({ is_required: e.target.checked })
+                  }
+                  className="sr-only"
+                />
+                <span
+                  className={[
+                    "absolute top-0.5 h-4 w-4 rounded-full bg-background shadow transition-transform",
+                    field.is_required ? "translate-x-4" : "translate-x-0.5",
+                  ].join(" ")}
+                />
+              </span>
+            </label>
+          )}
         </div>
       </div>
     </div>

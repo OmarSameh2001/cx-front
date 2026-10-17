@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Clock } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { FormService } from "@/services/form/form";
 import { SubmissionService } from "@/services/submission/submission";
 import type { FormRead } from "@/dto/form/form";
@@ -14,12 +14,15 @@ import {
   showSuccessToast,
   showWarningToast,
 } from "@/utils/toaster/toaster";
+import { firstMissingRequired, isAnswerMissing, orderedSections } from "@/utils/form/branching";
+import { useSectionPager } from "@/utils/form/use-section-pager";
 import { useNavigationGuard } from "@/app/_providers/navigation-guard-provider";
 
 const formService = new FormService();
 const submissionService = new SubmissionService();
 
 const AUTO_SAVE_MS = 15_000;
+const NO_FIELDS: FormRead["fields"] = [];
 
 export default function ExamPage({
   params,
@@ -128,17 +131,22 @@ export default function ExamPage({
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
 
+  const leaveMessage =
+    form?.type === "exam"
+      ? "You cannot leave the exam while it is in progress."
+      : "You cannot leave this form while it is in progress.";
+
   // --- block browser back button while in progress ---
   useEffect(() => {
     if (submission?.status !== "in_progress") return;
     window.history.pushState(null, "", window.location.href);
     function onPopState() {
       window.history.pushState(null, "", window.location.href);
-      showWarningToast("You cannot leave the exam while it is in progress.");
+      showWarningToast(leaveMessage);
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [submission?.status]);
+  }, [submission?.status, leaveMessage]);
 
   // --- activate/deactivate the global navigation guard ---
   useEffect(() => {
@@ -157,11 +165,11 @@ export default function ExamPage({
       if (!href || href === "#" || href === window.location.pathname) return;
       e.preventDefault();
       e.stopPropagation();
-      showWarningToast("You cannot leave the exam while it is in progress.");
+      showWarningToast(leaveMessage);
     }
     document.addEventListener("click", onLinkClick, true);
     return () => document.removeEventListener("click", onLinkClick, true);
-  }, [submission?.status]);
+  }, [submission?.status, leaveMessage]);
 
   // --- autosave loop ---
   const saveDraft = useCallback(async () => {
@@ -237,12 +245,69 @@ export default function ExamPage({
       void runSubmit();
       return;
     }
+    // exam questions aren't required, so warn about blanks instead of blocking
+    const unanswered =
+      form?.type === "exam"
+        ? form.fields.filter((f) => isAnswerMissing(answersRef.current[String(f.id)])).length
+        : 0;
     showConfirmToast({
-      title: "Submit answers?",
-      message: "You can't edit after this.",
-      confirmText: "Submit",
+      title: unanswered > 0 ? "Submit with unanswered questions?" : "Submit answers?",
+      message:
+        unanswered > 0
+          ? `You have ${unanswered} unanswered question${unanswered === 1 ? "" : "s"}; they will score 0. You can't edit after this.`
+          : "You can't edit after this.",
+      confirmText: unanswered > 0 ? "Submit anyway" : "Submit",
       onConfirm: () => void runSubmit(),
     });
+  }
+
+  // --- section pages (questionnaires with sections), following branching ---
+  const paged =
+    form?.type === "questionnaire" && (form.sections?.length ?? 0) > 0;
+  const pager = useSectionPager(
+    paged ? form!.sections! : null,
+    form?.fields ?? NO_FIELDS,
+    answers
+  );
+
+  // required answers are checked page by page; only the path counts
+  function missingOn(sectionIds: number[]) {
+    if (!form) return null;
+    const ids = new Set(sectionIds);
+    return firstMissingRequired(
+      [...form.fields]
+        .filter((f) => f.section_id != null && ids.has(f.section_id))
+        .sort((a, b) => a.order - b.order),
+      answers
+    );
+  }
+
+  function goNext() {
+    if (!pager.current) return;
+    const missing = missingOn([pager.current.id]);
+    if (missing) {
+      showErrorToast(`Please answer: ${missing.question}`);
+      return;
+    }
+    void saveDraft();
+    pager.goNext();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goBack() {
+    pager.goBack();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleSubmitClick() {
+    if (paged) {
+      const missing = missingOn(pager.path);
+      if (missing) {
+        showErrorToast(`Please answer: ${missing.question}`);
+        return;
+      }
+    }
+    doSubmit(false);
   }
 
   if (loading) {
@@ -278,7 +343,7 @@ export default function ExamPage({
             type="button"
             onClick={() => {
               if (submission.status === "in_progress") {
-                showWarningToast("You cannot leave the exam while it is in progress.");
+                showWarningToast(leaveMessage);
                 return;
               }
               router.push("/dashboard");
@@ -311,32 +376,60 @@ export default function ExamPage({
           </div>
         </header>
 
-        <form className="flex flex-col gap-4">
+        {/* Enter in a lone input would otherwise submit natively and reload */}
+        <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
           <FormFields
             form={form}
             answers={answers}
             disabled={expired || submitting}
             onAnswer={updateAnswer}
+            onlySectionId={paged ? pager.current?.id : undefined}
+            startNumber={pager.questionsBefore}
           />
         </form>
 
-        <div className="flex justify-end gap-2 pb-10">
-          <button
-            type="button"
-            onClick={() => void saveDraft()}
-            disabled={submitting}
-            className="px-4 py-2 rounded-md border border-border bg-background text-sm font-medium disabled:opacity-50"
-          >
-            Save draft
-          </button>
-          <button
-            type="button"
-            onClick={() => doSubmit(false)}
-            disabled={submitting || expired}
-            className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-          >
-            {submitting ? "Submitting..." : "Submit"}
-          </button>
+        <div className="flex flex-wrap items-center gap-2 pb-10">
+          {paged && pager.canGoBack && (
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={submitting}
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-md border border-border bg-background text-sm font-medium text-foreground hover:bg-muted/60 disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+          )}
+          <div className="flex flex-wrap gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => void saveDraft()}
+              disabled={submitting}
+              className="px-4 py-2 rounded-md border border-border bg-background text-sm font-medium disabled:opacity-50"
+            >
+              Save draft
+            </button>
+            {paged && !pager.isLast ? (
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={submitting}
+                className="inline-flex items-center gap-1 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmitClick}
+                disabled={submitting || expired}
+                className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >
+                {submitting ? "Submitting..." : "Submit"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -348,20 +441,31 @@ function FormFields({
   answers,
   disabled,
   onAnswer,
+  onlySectionId,
+  startNumber = 0,
 }: {
   form: FormRead;
   answers: Record<string, unknown>;
   disabled: boolean;
   onAnswer: (fieldId: number, value: unknown) => void;
+  /** Render just this section (paged questionnaires). */
+  onlySectionId?: number;
+  /** Questions answered on earlier pages of the path, for numbering. */
+  startNumber?: number;
 }) {
-  const sections = (form.sections ?? []).slice().sort((a, b) => a.order - b.order);
+  const sections = orderedSections(form.sections ?? []);
   const hasSections = sections.length > 0;
 
   const sortedFields = [...form.fields].sort((a, b) => a.order - b.order);
 
-  // Build global question numbers preserving section order
+  // Build global question numbers preserving section order; a single page
+  // continues from the questions already seen on the path
   const fieldNumber = new Map<number, number>();
-  if (hasSections) {
+  if (onlySectionId != null) {
+    sortedFields
+      .filter((f) => f.section_id === onlySectionId)
+      .forEach((f, i) => fieldNumber.set(f.id, startNumber + i + 1));
+  } else if (hasSections) {
     let n = 0;
     for (const section of sections) {
       for (const f of sortedFields.filter((sf) => sf.section_id === section.id)) {
@@ -389,9 +493,14 @@ function FormFields({
     );
   }
 
+  const shown =
+    onlySectionId != null
+      ? sections.filter((s) => s.id === onlySectionId)
+      : sections;
+
   return (
     <>
-      {sections.map((section) => {
+      {shown.map((section) => {
         const sFields = sortedFields.filter((f) => f.section_id === section.id);
         return (
           <div key={section.id} className="flex flex-col gap-4">

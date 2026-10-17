@@ -25,6 +25,55 @@ const DEFAULT_RETRY: RetryConfig = {
   backoff: "exponential",
 };
 
+// Thrown for non-2xx responses. `message` carries the backend's `detail`
+// when there is one, so it can be shown to the user as is.
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    // stable code from {"error": "..."} bodies, e.g. "form_has_submissions"
+    public code?: string,
+    // dotted locations of Pydantic errors, e.g. "body.customer.email"
+    public fields: string[] = []
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+// Reads FastAPI's error body: {"detail": "msg", "error"?: "code"} for backend
+// checks, or {"detail": [{"loc": [...], "msg": "Value error, ..."}]} for
+// Pydantic validation.
+export async function toHttpError(res: Response, fallback: string): Promise<HttpError> {
+  let message: string | null = null;
+  let code: string | undefined;
+  const fields: string[] = [];
+  try {
+    const body = await res.json();
+    const detail = body?.detail;
+    if (typeof body?.error === "string") code = body.error;
+    if (typeof detail === "string") message = detail;
+    if (Array.isArray(detail)) {
+      const msgs = detail
+        .map((d) => (typeof d?.msg === "string" ? d.msg.replace(/^Value error, /, "") : null))
+        .filter(Boolean);
+      if (msgs.length > 0) message = msgs.join("; ");
+      for (const d of detail) if (Array.isArray(d?.loc)) fields.push(d.loc.join("."));
+    }
+  } catch {
+    // not JSON
+  }
+  return new HttpError(message ?? fallback, res.status, code, fields);
+}
+
+// Only reads are replayed: a write the server already applied before failing
+// (e.g. a 502 from a proxy) must not run twice. 4xx is a decision, not a
+// transient failure; 408/429 are the exceptions.
+function isRetryable(status: number, method: string): boolean {
+  if (method !== "GET" && method !== "HEAD") return false;
+  return status >= 500 || status === 408 || status === 429;
+}
+
 export class HttpService {
   protected baseUrl: string;
   protected retryConfig: RetryConfig;
@@ -95,10 +144,9 @@ export class HttpService {
       }
 
       if (!res.ok) {
-        lastError = new Error(`${res.status} ${res.statusText} — ${url}`);
+        lastError = await toHttpError(res, `${res.status} ${res.statusText} — ${url}`);
 
-        // 403 is a permission decision, not a transient failure — don't retry.
-        if (res.status === 403) {
+        if (!isRetryable(res.status, (init.method ?? "GET").toUpperCase())) {
           throw lastError;
         }
 

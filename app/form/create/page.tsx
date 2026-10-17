@@ -21,7 +21,11 @@ import { LayoutList, Plus } from "lucide-react";
 import { UnitsMultiSelect } from "@/components/units-multi-select";
 import FieldCard from "@/components/form/field-card";
 import SectionCard from "@/components/form/section-card";
-import { createField, type FormField } from "@/dto/form/form-field";
+import {
+  createField,
+  hasTooFewOptions,
+  type FormField,
+} from "@/dto/form/form-field";
 import type {
   FormCreatePayload,
   FormFieldCreatePayload,
@@ -32,7 +36,17 @@ import type {
 import type { LookupResult } from "@/dto/lookup/lookup";
 import { FormService } from "@/services/form/form";
 import { LookupService } from "@/services/lookup/lookup";
-import { showErrorToast, showSuccessToast } from "@/utils/toaster/toaster";
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+} from "@/utils/toaster/toaster";
+import {
+  hasBranching,
+  sanitizeBranching,
+  sectionBranchTargets,
+} from "@/utils/form/branching";
+import { cleanGrading, gradingClearedMessage, withExamRules } from "@/utils/form/grading";
 
 const formService = new FormService();
 const lookupService = new LookupService();
@@ -53,7 +67,12 @@ function toFieldPayload(f: FormField): FormFieldCreatePayload {
     is_required: f.is_required,
     score_weight: f.score_weight,
     section_id: f.section_id ?? null,
+    branching: hasBranching(f) ? f.branching : null,
   };
+}
+
+function toSectionPayload(s: FormSection): FormSection {
+  return { ...s, next_section_id: s.next_section_id ?? null };
 }
 
 export default function FormCreatePage() {
@@ -117,6 +136,8 @@ export default function FormCreatePage() {
         ...prev[idx],
         id: crypto.randomUUID(),
         options: prev[idx].options ? [...prev[idx].options!] : undefined,
+        // a section can only have one branching question
+        branching: undefined,
       };
       const next = [...prev.slice(0, idx + 1), clone, ...prev.slice(idx + 1)];
       return next.map((f, i) => ({ ...f, order: i }));
@@ -147,6 +168,19 @@ export default function FormCreatePage() {
 
   // ── Section operations ──────────────────────────────────────────────────────
 
+  // Commits a structural section change, clearing branching targets that were
+  // removed or no longer come later.
+  const applySections = (
+    nextSections: FormSection[],
+    nextFields: FormField[],
+    clearedMessage: string
+  ) => {
+    const cleaned = sanitizeBranching(formType, nextSections, nextFields);
+    setSections(cleaned.sections);
+    setFields(cleaned.fields);
+    if (cleaned.changed) showInfoToast(clearedMessage);
+  };
+
   const addSection = () => {
     const id = nextSectionId.current++;
     const newSection: FormSection = {
@@ -168,8 +202,11 @@ export default function FormCreatePage() {
   };
 
   const removeSections = () => {
-    setSections([]);
-    setFields((prev) => prev.map((f) => ({ ...f, section_id: null })));
+    applySections(
+      [],
+      fields.map((f) => ({ ...f, section_id: null })),
+      "Branching rules were removed because the form no longer has sections."
+    );
   };
 
   const updateSection = (id: number, patch: Partial<FormSection>) => {
@@ -179,11 +216,11 @@ export default function FormCreatePage() {
   };
 
   const deleteSection = (id: number) => {
-    setSections((prev) => {
-      const remaining = prev.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i }));
-      return remaining;
-    });
-    setFields((prev) => prev.filter((f) => f.section_id !== id));
+    applySections(
+      sections.filter((s) => s.id !== id).map((s, i) => ({ ...s, order: i })),
+      fields.filter((f) => f.section_id !== id),
+      "Branching rules that pointed to the deleted section were cleared."
+    );
   };
 
   const addFieldToSection = (sectionId: number) => {
@@ -206,18 +243,34 @@ export default function FormCreatePage() {
   const handleSectionDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setSections((prev) => {
-      const oldIndex = prev.findIndex((s) => `section-${s.id}` === active.id);
-      const newIndex = prev.findIndex((s) => `section-${s.id}` === over.id);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      return arrayMove(prev, oldIndex, newIndex).map((s, i) => ({
-        ...s,
-        order: i,
-      }));
-    });
+    const oldIndex = sections.findIndex((s) => `section-${s.id}` === active.id);
+    const newIndex = sections.findIndex((s) => `section-${s.id}` === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    applySections(
+      arrayMove(sections, oldIndex, newIndex).map((s, i) => ({ ...s, order: i })),
+      fields,
+      "Branching rules that no longer point to a later section were cleared."
+    );
   };
 
   // ── Misc ────────────────────────────────────────────────────────────────────
+
+  const changeFormType = (next: FormType) => {
+    setFormType(next);
+    // exams can't branch; questionnaires aren't graded
+    const cleaned =
+      next === "exam"
+        ? sanitizeBranching(next, sections, fields)
+        : cleanGrading(next, sections, fields);
+    if (!cleaned.changed) return;
+    setSections(cleaned.sections);
+    setFields(cleaned.fields);
+    showInfoToast(
+      next === "exam"
+        ? "Branching was removed because exams don't support it."
+        : gradingClearedMessage(next)
+    );
+  };
 
   const toggleSubmitter = (v: SubmitterType) => {
     setSubmitterType((prev) =>
@@ -238,6 +291,7 @@ export default function FormCreatePage() {
       if (fields.length === 0) return false;
       if (fields.some((f) => !f.question.trim())) return false;
     }
+    if (fields.some(hasTooFewOptions)) return false;
     return true;
   }, [name, submitterType, fields, sections, hasSections]);
 
@@ -270,6 +324,20 @@ export default function FormCreatePage() {
       showErrorToast("Max attempts must be a positive number");
       return;
     }
+    // last guards: drop branching rules and correct answers the backend would
+    // reject (e.g. on emptied options); questionnaires carry no grading
+    const branched = sanitizeBranching(formType, hasSections ? sections : [], fields);
+    const cleaned = cleanGrading(formType, branched.sections, branched.fields);
+    if (branched.changed || cleaned.changed) {
+      setSections(cleaned.sections);
+      setFields(cleaned.fields);
+    }
+    if (branched.changed) {
+      showInfoToast(
+        "Some branching rules were no longer valid and were removed before saving."
+      );
+    }
+    if (cleaned.changed) showInfoToast(gradingClearedMessage(formType));
     const payload: FormCreatePayload = {
       name: name.trim(),
       description: description.trim() || null,
@@ -280,8 +348,8 @@ export default function FormCreatePage() {
       time_limit_minutes: formType === "exam" ? parsedTimeLimit : null,
       max_attempts: parsedMaxAttempts,
       results_revealed: resultsRevealed,
-      fields: fields.map(toFieldPayload),
-      sections: hasSections ? sections : null,
+      fields: withExamRules(formType, cleaned.fields).map(toFieldPayload),
+      sections: hasSections ? cleaned.sections.map(toSectionPayload) : null,
     };
     setSubmitting(true);
     try {
@@ -369,7 +437,7 @@ export default function FormCreatePage() {
                   <button
                     key={opt}
                     type="button"
-                    onClick={() => setFormType(opt)}
+                    onClick={() => changeFormType(opt)}
                     className={[
                       "px-3 py-1.5 rounded-full text-sm border transition-colors capitalize",
                       active
@@ -503,7 +571,7 @@ export default function FormCreatePage() {
               strategy={verticalListSortingStrategy}
             >
               <div className="flex flex-col gap-6">
-                {sections.map((section) => (
+                {sections.map((section, idx) => (
                   <SectionCard
                     key={section.id}
                     section={section}
@@ -513,6 +581,13 @@ export default function FormCreatePage() {
                     isExam={formType === "exam"}
                     scoringMode={scoringMode}
                     maxWeight={scoringMode === "percentage" ? 100 - (totalSectionWeight - section.score_weight) : undefined}
+                    position={idx + 1}
+                    totalSections={sections.length}
+                    branchTargets={
+                      formType === "questionnaire"
+                        ? sectionBranchTargets(sections, section.id)
+                        : undefined
+                    }
                     activeFieldId={activeId}
                     onUpdateSection={(patch) => updateSection(section.id, patch)}
                     onDeleteSection={() => deleteSection(section.id)}

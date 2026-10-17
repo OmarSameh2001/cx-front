@@ -63,6 +63,11 @@ export class FormService extends HttpService {
     return this.patch<FormRead>(`/forms/${id}`, payload);
   }
 
+  // an inactive copy with no responses, e.g. to change a locked structure
+  async duplicate(id: number) {
+    return this.post<FormRead>(`/forms/${id}/duplicate`, {});
+  }
+
   async activate(id: number) {
     return this.post<FormRead>(`/forms/${id}/activate`, {});
   }

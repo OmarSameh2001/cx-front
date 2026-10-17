@@ -7,6 +7,7 @@ export interface PublicFormField {
   help_text?: string | null;
   is_required: boolean;
   section_id?: number | null;
+  branching?: Record<string, import("@/dto/form/form").SectionTarget> | null;
 }
 
 export interface PublicForm {

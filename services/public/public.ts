@@ -1,4 +1,5 @@
 import { HTTP_ENV } from "@/utils/config/http-env";
+import { toHttpError } from "../http";
 import type {
   PublicForm,
   PublicSubmitRequest,
@@ -9,14 +10,7 @@ const baseUrl = HTTP_ENV.API_URL ?? "";
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`;
-    try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-    } catch {
-      // ignore parse failure
-    }
-    throw new Error(detail);
+    throw await toHttpError(res, `${res.status} ${res.statusText}`);
   }
   return (await res.json()) as T;
 }

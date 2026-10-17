@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import AnswerField from "@/components/form/answer/answer-field";
 import type { FormFieldRead } from "@/dto/form/form";
 import type { PublicForm, PublicFormField } from "@/dto/public/public";
@@ -10,6 +10,18 @@ import {
   showErrorToast,
   showSuccessToast,
 } from "@/utils/toaster/toaster";
+import { HttpError } from "@/services/http";
+import { firstMissingRequired, orderedSections } from "@/utils/form/branching";
+import { useSectionPager } from "@/utils/form/use-section-pager";
+import {
+  clearPublicProgress,
+  publicProgressKey,
+  readPublicProgress,
+  writePublicProgress,
+} from "@/utils/form/progress-storage";
+import { AuthValidator } from "@/utils/validator/auth";
+
+const NO_FIELDS: PublicFormField[] = [];
 
 function toAnswerField(f: PublicFormField): FormFieldRead {
   return {
@@ -45,12 +57,34 @@ export default function PublicFormPage({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  // one section per page, following branching
+  const paged = (form?.sections?.length ?? 0) > 0;
+  const pager = useSectionPager(
+    paged ? form!.sections! : null,
+    form?.fields ?? NO_FIELDS,
+    answers
+  );
+  const onFirstPage = !pager.canGoBack;
+  const restorePath = pager.restore;
+  const progressKey = publicProgressKey(token);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     PublicService.getForm(token)
       .then((f) => {
-        if (!cancelled) setForm(f);
+        if (cancelled) return;
+        setForm(f);
+        // a refresh puts the respondent back where they were
+        const saved = readPublicProgress(publicProgressKey(token));
+        if (saved) {
+          setEmail(saved.email);
+          setFirstName(saved.firstName);
+          setLastName(saved.lastName);
+          setPhone(saved.phone);
+          setAnswers(saved.answers);
+          restorePath(saved.path);
+        }
       })
       .catch((e) => {
         if (!cancelled)
@@ -64,28 +98,83 @@ export default function PublicFormPage({
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, restorePath]);
+
+  // keep unsent progress through a refresh; cleared once submitted
+  const pathKey = pager.path.join(",");
+  useEffect(() => {
+    if (!form || done) return;
+    writePublicProgress(progressKey, {
+      email,
+      firstName,
+      lastName,
+      phone,
+      answers,
+      path: pathKey ? pathKey.split(",").map(Number) : [],
+    });
+  }, [form, done, progressKey, email, firstName, lastName, phone, answers, pathKey]);
 
   const updateAnswer = (id: number, v: unknown) =>
     setAnswers((prev) => ({ ...prev, [String(id)]: v }));
 
-  async function handleSubmit() {
-    if (!form) return;
+  // details live on the first page only, so send the respondent there to fix them
+  function backToDetails() {
+    pager.reset();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function detailsInvalid() {
     if (!email.trim() || !firstName.trim() || !lastName.trim()) {
       showErrorToast("Please fill in your email, first name and last name.");
+      return true;
+    }
+    const emailError = AuthValidator.email(email);
+    if (emailError) {
+      showErrorToast(emailError);
+      return true;
+    }
+    return false;
+  }
+
+  // required answers only count on the sections the respondent goes through
+  function missingAnswer(sectionIds: number[] | null) {
+    if (!form) return null;
+    const ids = sectionIds && new Set(sectionIds);
+    return firstMissingRequired(
+      [...form.fields]
+        .filter((f) => !ids || (f.section_id != null && ids.has(f.section_id)))
+        .sort((a, b) => a.order - b.order),
+      answers
+    );
+  }
+
+  function goNext() {
+    if (!pager.current) return;
+    if (onFirstPage && detailsInvalid()) return;
+    const missing = missingAnswer([pager.current.id]);
+    if (missing) {
+      showErrorToast(`Please answer: ${missing.question}`);
       return;
     }
-    for (const f of form.fields) {
-      if (!f.is_required) continue;
-      const v = answers[String(f.id)];
-      if (
-        v == null ||
-        v === "" ||
-        (Array.isArray(v) && v.length === 0)
-      ) {
-        showErrorToast(`Please answer: ${f.question}`);
-        return;
-      }
+    pager.goNext();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function goBack() {
+    pager.goBack();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit() {
+    if (!form) return;
+    if (detailsInvalid()) {
+      if (!onFirstPage) backToDetails();
+      return;
+    }
+    const missing = missingAnswer(paged ? pager.path : null);
+    if (missing) {
+      showErrorToast(`Please answer: ${missing.question}`);
+      return;
     }
     setSubmitting(true);
     try {
@@ -99,9 +188,15 @@ export default function PublicFormPage({
         answers,
       });
       showSuccessToast("Thanks! Your response has been submitted.");
+      clearPublicProgress(progressKey);
       setDone(true);
     } catch (e) {
       showErrorToast(e instanceof Error ? e.message : "Could not submit");
+      const aboutDetails =
+        e instanceof HttpError &&
+        (e.code === "customer_details_mismatch" ||
+          e.fields.some((f) => f.startsWith("body.customer")));
+      if (aboutDetails && !onFirstPage) backToDetails();
     } finally {
       setSubmitting(false);
     }
@@ -155,62 +250,90 @@ export default function PublicFormPage({
           )}
         </header>
 
-        <section className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-foreground">Your details</h2>
-          <p className="text-xs text-muted-foreground">
-            If you&apos;ve submitted a form here before, use the same details.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <LabeledInput
-              label="Email"
-              type="email"
-              value={email}
-              onChange={setEmail}
-              required
-              disabled={submitting}
-            />
-            <LabeledInput
-              label="Phone"
-              type="tel"
-              value={phone}
-              onChange={setPhone}
-              disabled={submitting}
-            />
-            <LabeledInput
-              label="First name"
-              value={firstName}
-              onChange={setFirstName}
-              required
-              disabled={submitting}
-            />
-            <LabeledInput
-              label="Last name"
-              value={lastName}
-              onChange={setLastName}
-              required
-              disabled={submitting}
-            />
-          </div>
-        </section>
+        {onFirstPage && (
+          <section className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-foreground">Your details</h2>
+            <p className="text-xs text-muted-foreground">
+              If you&apos;ve submitted a form here before, use the same details.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <LabeledInput
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                required
+                disabled={submitting}
+              />
+              <LabeledInput
+                label="Phone"
+                type="tel"
+                value={phone}
+                onChange={setPhone}
+                disabled={submitting}
+              />
+              <LabeledInput
+                label="First name"
+                value={firstName}
+                onChange={setFirstName}
+                required
+                disabled={submitting}
+              />
+              <LabeledInput
+                label="Last name"
+                value={lastName}
+                onChange={setLastName}
+                required
+                disabled={submitting}
+              />
+            </div>
+          </section>
+        )}
 
-        <form className="flex flex-col gap-4">
+        {/* Enter in a lone input would otherwise submit natively and reload */}
+        <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
           <PublicFormFields
             form={form}
             answers={answers}
             disabled={submitting}
             onAnswer={updateAnswer}
+            onlySectionId={paged ? pager.current?.id : undefined}
+            startNumber={pager.questionsBefore}
           />
         </form>
 
-        <div className="flex justify-end pb-10">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-          >
-            {submitting ? "Submitting..." : "Submit"}
-          </button>
+        <div className="flex flex-wrap items-center gap-2 pb-10">
+          {paged && pager.canGoBack && (
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={submitting}
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-md border border-border bg-background text-sm font-medium text-foreground hover:bg-muted/60 disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
+          )}
+          {paged && !pager.isLast ? (
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={submitting}
+              className="ml-auto inline-flex items-center gap-1 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="ml-auto px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {submitting ? "Submitting..." : "Submit"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -222,19 +345,30 @@ function PublicFormFields({
   answers,
   disabled,
   onAnswer,
+  onlySectionId,
+  startNumber = 0,
 }: {
   form: PublicForm;
   answers: Record<string, unknown>;
   disabled: boolean;
   onAnswer: (id: number, v: unknown) => void;
+  /** Render just this section (paged forms). */
+  onlySectionId?: number;
+  /** Questions answered on earlier pages of the path, for numbering. */
+  startNumber?: number;
 }) {
-  const sections = (form.sections ?? []).slice().sort((a, b) => a.order - b.order);
+  const sections = orderedSections(form.sections ?? []);
   const hasSections = sections.length > 0;
 
   const sortedFields = [...form.fields].sort((a, b) => a.order - b.order);
 
+  // a single page continues from the questions already seen on the path
   const fieldNumber = new Map<number, number>();
-  if (hasSections) {
+  if (onlySectionId != null) {
+    sortedFields
+      .filter((f) => f.section_id === onlySectionId)
+      .forEach((f, i) => fieldNumber.set(f.id, startNumber + i + 1));
+  } else if (hasSections) {
     let n = 0;
     for (const section of sections) {
       for (const f of sortedFields.filter((sf) => sf.section_id === section.id)) {
@@ -274,9 +408,14 @@ function PublicFormFields({
     return <>{sortedFields.map((f) => renderField(f, fieldNumber.get(f.id)!))}</>;
   }
 
+  const shown =
+    onlySectionId != null
+      ? sections.filter((s) => s.id === onlySectionId)
+      : sections;
+
   return (
     <>
-      {sections.map((section) => {
+      {shown.map((section) => {
         const sFields = sortedFields.filter((f) => f.section_id === section.id);
         return (
           <div key={section.id} className="flex flex-col gap-4">
