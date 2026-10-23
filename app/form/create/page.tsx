@@ -21,6 +21,7 @@ import { LayoutList, Plus } from "lucide-react";
 import { UnitsMultiSelect } from "@/components/units-multi-select";
 import FieldCard from "@/components/form/field-card";
 import SectionCard from "@/components/form/section-card";
+import AiGeneratePanel from "@/components/form/ai-generate-panel";
 import {
   createField,
   hasTooFewOptions,
@@ -47,6 +48,7 @@ import {
   sectionBranchTargets,
 } from "@/utils/form/branching";
 import { cleanGrading, gradingClearedMessage, withExamRules } from "@/utils/form/grading";
+import { aiDraftToState } from "@/utils/form/ai-draft";
 
 const formService = new FormService();
 const lookupService = new LookupService();
@@ -253,6 +255,27 @@ export default function FormCreatePage() {
     );
   };
 
+  // ── AI draft ────────────────────────────────────────────────────────────────
+
+  // Loads a generated draft over the current form; selected units are kept.
+  const applyAiDraft = (payload: FormCreatePayload) => {
+    const draft = aiDraftToState(payload);
+    setName(draft.name);
+    setDescription(draft.description);
+    setFormType(draft.formType);
+    // units only allow employee submitters
+    setSubmitterType(hasUnits ? ["employee"] : draft.submitterType);
+    setTimeLimit(draft.timeLimit);
+    setMaxAttempts(draft.maxAttempts);
+    setResultsRevealed(draft.resultsRevealed);
+    setSections(draft.hasSections ? draft.sections : []);
+    setFields(draft.fields);
+    nextSectionId.current = draft.nextSectionId;
+    setActiveId(null);
+    setError(null);
+    showSuccessToast("AI draft loaded. Review it, then save the form.");
+  };
+
   // ── Misc ────────────────────────────────────────────────────────────────────
 
   const changeFormType = (next: FormType) => {
@@ -367,6 +390,8 @@ export default function FormCreatePage() {
   return (
     <div className="flex-1 min-h-screen bg-muted/40">
       <div className="max-w-3xl mx-auto px-4 py-10 flex flex-col gap-4">
+        <AiGeneratePanel onDraft={applyAiDraft} />
+
         <header className="rounded-lg bg-card text-card-foreground border border-border border-t-8 border-t-primary shadow-sm p-6 flex flex-col gap-4">
           <input
             type="text"
