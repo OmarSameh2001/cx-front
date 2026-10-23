@@ -1,6 +1,7 @@
 import { HttpService } from "../http";
 import type { Page } from "@/dto/common/page";
 import type {
+  RespondentForm,
   SubmissionDetail,
   SubmissionDraftUpdate,
   SubmissionFinalize,
@@ -56,6 +57,11 @@ export class SubmissionService extends HttpService {
 
   async getDetail(id: number) {
     return this.get<SubmissionDetail>(`/submissions/${id}/detail`);
+  }
+
+  // the questions of an in-progress submission, without correct answers
+  async getForm(id: number) {
+    return this.get<RespondentForm>(`/submissions/${id}/form`);
   }
 
   async start(payload: SubmissionStartRequest) {

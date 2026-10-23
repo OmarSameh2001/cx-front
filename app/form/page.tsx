@@ -7,6 +7,7 @@ import Table from "@/components/table/table";
 import { FormService } from "@/services/form/form";
 import { useAuth } from "@/app/_providers/auth-provider";
 import type { FormSummary } from "@/dto/form/form";
+import { canReviewForm, canViewForm, type Viewer } from "@/utils/form/access";
 
 const formService = new FormService();
 
@@ -23,8 +24,9 @@ const COLUMNS = [
 ];
 
 export default function FormListPage() {
-  const { user } = useAuth();
+  const { user, isAdmin, permissions } = useAuth();
   const router = useRouter();
+  const viewer: Viewer = { userId: user?.id, isAdmin, permissions };
 
   const [items, setItems] = useState<FormSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -205,8 +207,17 @@ export default function FormListPage() {
           addNewPermission="forms:create"
           buttonName="Create Form"
           actions={[
-            { name: "view", onClick: (id) => router.push(`/form/${id}`), permission: "" },
-            { name: "submissions", onClick: (id) => router.push(`/form/${id}/submissions`), permission: "" },
+            // only where the page would open; respondents answer from their dashboard
+            {
+              name: "view",
+              onClick: (id) => router.push(`/form/${id}`),
+              visible: (row: FormSummary) => canViewForm(row, viewer),
+            },
+            {
+              name: "submissions",
+              onClick: (id) => router.push(`/form/${id}/submissions`),
+              visible: (row: FormSummary) => canReviewForm(row, viewer),
+            },
           ]}
           pagination={{
             currentPage,

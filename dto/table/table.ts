@@ -25,6 +25,8 @@ export interface TableActionButton {
     value?: any
   ) => Promise<any> | void;
   permission?: string;
+  /** Per-row check, for rules a permission alone can't express (e.g. "is the creator"). */
+  visible?: (row: any) => boolean;
 }
 
 export interface PaginationProps {

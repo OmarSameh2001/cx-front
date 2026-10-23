@@ -33,6 +33,4 @@ export interface PublicSubmitRequest {
 
 export interface PublicSubmitResponse {
   submission_id: number;
-  customer_id: number;
-  created_customer: boolean;
 }

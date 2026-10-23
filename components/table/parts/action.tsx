@@ -73,6 +73,7 @@ export function TableActionIcon({
   })();
 
   if (!icon) return null;
+  if (action.visible && !action.visible(row)) return null;
 
   return action.permission ? (
     <PermissionGate permission={action.permission}>{icon}</PermissionGate>

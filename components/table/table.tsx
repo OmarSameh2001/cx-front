@@ -55,7 +55,9 @@ function Table({
 }: TableProps) {
   const { permissions, isAdmin } = useAuth();
   const hasVisibleAction = actions?.some(
-    (a) => !a.permission || isAdmin || !!permissions[a.permission]
+    (a) =>
+      (!a.permission || isAdmin || !!permissions[a.permission]) &&
+      (!a.visible || data.some(a.visible))
   ) ?? false;
 
   const addNewButton = addNew ? (

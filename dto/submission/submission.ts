@@ -1,3 +1,6 @@
+import type { FormType, SectionTarget } from "@/dto/form/form";
+import type { FieldType } from "@/dto/form/form-field";
+
 export type SubmissionStatus =
   | "in_progress"
   | "submitted"
@@ -48,4 +51,37 @@ export interface SubmissionDetailField {
 export interface SubmissionDetail extends SubmissionRead {
   answers: Record<string, unknown> | null;
   fields: SubmissionDetailField[];
+}
+
+// The form as a respondent sees it, served through their own in-progress
+// submission: no correct answers, no grading weights.
+export interface RespondentField {
+  id: number;
+  question: string;
+  type: FieldType;
+  options?: string[] | null;
+  order: number;
+  help_text?: string | null;
+  is_required: boolean;
+  section_id?: number | null;
+  branching?: Record<string, SectionTarget> | null;
+}
+
+export interface RespondentSection {
+  id: number;
+  title: string;
+  description?: string | null;
+  order: number;
+  next_section_id?: SectionTarget | null;
+}
+
+export interface RespondentForm {
+  id: number;
+  name: string;
+  description?: string | null;
+  type: FormType;
+  time_limit_minutes?: number | null;
+  max_attempts?: number | null;
+  fields: RespondentField[];
+  sections?: RespondentSection[] | null;
 }

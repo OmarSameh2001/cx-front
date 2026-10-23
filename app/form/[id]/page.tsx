@@ -66,6 +66,8 @@ import {
 } from "@/utils/form/branching";
 import { cleanGrading, gradingClearedMessage, withExamRules } from "@/utils/form/grading";
 import { useAuth } from "@/app/_providers/auth-provider";
+import { AccessDenied } from "@/components/auth/access-denied";
+import { canReviewForm } from "@/utils/form/access";
 
 const formService = new FormService();
 const lookupService = new LookupService();
@@ -189,10 +191,12 @@ export default function FormEditPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const { user, permissions } = useAuth();
+  const { user, permissions, isAdmin } = useAuth();
   const nextSectionId = useRef(1);
 
   const [form, setForm] = useState<FormRead | null>(null);
+  // the backend refused the form (403): the viewer has no access to it
+  const [forbidden, setForbidden] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -260,9 +264,13 @@ export default function FormEditPage({
           }
         }
       })
-      .catch((e) =>
-        showErrorToast(e instanceof Error ? e.message : "Could not load form")
-      )
+      .catch((e) => {
+        if (e instanceof HttpError && e.status === 403) {
+          if (!cancelled) setForbidden(true);
+          return;
+        }
+        showErrorToast(e instanceof Error ? e.message : "Could not load form");
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -672,7 +680,7 @@ export default function FormEditPage({
             <ArrowLeft className="h-4 w-4" />
             Back to forms
           </Link>
-          {form && (
+          {form && canReviewForm(form, { userId: user?.id, isAdmin, permissions }) && (
             <Link
               href={`/form/${id}/submissions`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-border bg-card hover:bg-muted/60 text-foreground"
@@ -687,6 +695,8 @@ export default function FormEditPage({
           <div className="rounded-lg bg-card border border-border p-10 text-center text-sm text-muted-foreground">
             Loading...
           </div>
+        ) : forbidden ? (
+          <AccessDenied />
         ) : !form ? (
           <div className="rounded-lg bg-card border border-border p-10 text-center text-sm text-muted-foreground">
             Form not found.

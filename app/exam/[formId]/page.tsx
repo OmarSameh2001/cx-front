@@ -3,10 +3,13 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { FormService } from "@/services/form/form";
 import { SubmissionService } from "@/services/submission/submission";
-import type { FormRead } from "@/dto/form/form";
-import type { SubmissionRead } from "@/dto/submission/submission";
+import type { FormFieldRead } from "@/dto/form/form";
+import type {
+  RespondentField,
+  RespondentForm,
+  SubmissionRead,
+} from "@/dto/submission/submission";
 import AnswerField from "@/components/form/answer/answer-field";
 import {
   showConfirmToast,
@@ -18,11 +21,21 @@ import { firstMissingRequired, isAnswerMissing, orderedSections } from "@/utils/
 import { useSectionPager } from "@/utils/form/use-section-pager";
 import { useNavigationGuard } from "@/app/_providers/navigation-guard-provider";
 
-const formService = new FormService();
 const submissionService = new SubmissionService();
 
 const AUTO_SAVE_MS = 15_000;
-const NO_FIELDS: FormRead["fields"] = [];
+const NO_FIELDS: RespondentField[] = [];
+
+// AnswerField takes the editor's field shape; a respondent has no grading data
+function toAnswerField(f: RespondentField): FormFieldRead {
+  return {
+    ...f,
+    options: f.options ?? null,
+    help_text: f.help_text ?? null,
+    right_answer: null,
+    score_weight: 0,
+  };
+}
 
 export default function ExamPage({
   params,
@@ -32,7 +45,7 @@ export default function ExamPage({
   const { formId } = use(params);
   const router = useRouter();
 
-  const [form, setForm] = useState<FormRead | null>(null);
+  const [form, setForm] = useState<RespondentForm | null>(null);
   const [submission, setSubmission] = useState<SubmissionRead | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
@@ -54,9 +67,8 @@ export default function ExamPage({
     setLoading(true);
     (async () => {
       try {
-        const f = await formService.getById(Number(formId));
-        if (cancelled) return;
-        setForm(f);
+        // start (or resume) first: the questions come with the attempt, and
+        // without the correct answers
         const s = await submissionService.start({ form_id: Number(formId) });
         if (cancelled) return;
         if (s.status !== "in_progress") {
@@ -64,6 +76,9 @@ export default function ExamPage({
           router.replace(`/submissions/${s.id}`);
           return;
         }
+        const f = await submissionService.getForm(s.id);
+        if (cancelled) return;
+        setForm(f);
         setSubmission(s);
         // load existing draft answers via detail (owner sees its own answers
         // when in progress; if not, will be null)
@@ -444,7 +459,7 @@ function FormFields({
   onlySectionId,
   startNumber = 0,
 }: {
-  form: FormRead;
+  form: RespondentForm;
   answers: Record<string, unknown>;
   disabled: boolean;
   onAnswer: (fieldId: number, value: unknown) => void;
@@ -538,7 +553,7 @@ function FieldAnswerCard({
   disabled,
   onAnswer,
 }: {
-  field: FormRead["fields"][number];
+  field: RespondentField;
   num: number;
   answers: Record<string, unknown>;
   disabled: boolean;
@@ -558,7 +573,7 @@ function FieldAnswerCard({
         )}
       </div>
       <AnswerField
-        field={field}
+        field={toAnswerField(field)}
         value={answers[String(field.id)]}
         onChange={(v) => onAnswer(field.id, v)}
         disabled={disabled}

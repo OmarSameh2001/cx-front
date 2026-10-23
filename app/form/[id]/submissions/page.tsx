@@ -11,6 +11,10 @@ import { SubmissionService } from "@/services/submission/submission";
 import type { FormRead } from "@/dto/form/form";
 import type { SubmissionRead } from "@/dto/submission/submission";
 import { showErrorToast } from "@/utils/toaster/toaster";
+import { HttpError } from "@/services/http";
+import { useAuth } from "@/app/_providers/auth-provider";
+import { AccessDenied } from "@/components/auth/access-denied";
+import { canReviewForm } from "@/utils/form/access";
 
 const formService = new FormService();
 const submissionService = new SubmissionService();
@@ -48,8 +52,11 @@ export default function FormSubmissionsPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user, isAdmin, permissions, loading: authLoading } = useAuth();
 
   const [form, setForm] = useState<FormRead | null>(null);
+  // the backend refused the form outright (no access to it at all)
+  const [formForbidden, setFormForbidden] = useState(false);
   const [items, setItems] = useState<SubmissionRead[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,7 +71,12 @@ export default function FormSubmissionsPage({
   const reqId = useRef(0);
 
   useEffect(() => {
-    formService.getById(Number(id)).then(setForm).catch(() => {});
+    formService
+      .getById(Number(id))
+      .then(setForm)
+      .catch((e) => {
+        if (e instanceof HttpError && e.status === 403) setFormForbidden(true);
+      });
   }, [id]);
 
   // debounce search input
@@ -148,6 +160,13 @@ export default function FormSubmissionsPage({
       })),
     [items]
   );
+
+  // only the form's reviewers see its submissions; anyone else would just get
+  // a list of their own, so say so plainly instead
+  const denied =
+    formForbidden ||
+    (!!form && !authLoading && !canReviewForm(form, { userId: user?.id, isAdmin, permissions }));
+  if (denied) return <AccessDenied />;
 
   return (
     <div className="flex-1 min-w-0 min-h-screen p-6 flex flex-col gap-6">
