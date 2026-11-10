@@ -2,6 +2,18 @@ import { expect, test as setup } from "@playwright/test";
 
 import { PASSWORD, USERS } from "./users";
 
+// `next dev` compiles each route on its first visit, which takes 15s+ per
+// route on a slow drive. Parallel tests hitting different cold routes at once
+// can time out, so compile them here, one at a time, before any test runs.
+const ROUTES = ["/", "/organisation", "/roles", "/form/0/submissions", "/public/form/warm-up"];
+
+setup("compile the routes the tests use", async ({ page }) => {
+  setup.setTimeout(5 * 60_000);
+  for (const route of ROUTES) {
+    await page.goto(route, { timeout: 2 * 60_000 });
+  }
+});
+
 // Signs each seeded user in through the real login page and saves the session
 // (auth cookies + the user/permissions the app keeps in localStorage).
 for (const [name, user] of Object.entries(USERS)) {

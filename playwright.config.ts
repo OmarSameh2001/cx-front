@@ -23,6 +23,8 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    // a cold `next dev` route can take a while to compile on first visit
+    navigationTimeout: 60_000,
   },
   projects: [
     // Logs in once per seeded user and saves the session to .auth/; after all

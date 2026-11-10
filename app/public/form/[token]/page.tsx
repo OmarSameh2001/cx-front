@@ -194,8 +194,7 @@ export default function PublicFormPage({
       showErrorToast(e instanceof Error ? e.message : "Could not submit");
       const aboutDetails =
         e instanceof HttpError &&
-        (e.code === "customer_details_mismatch" ||
-          e.fields.some((f) => f.startsWith("body.customer")));
+        e.fields.some((f) => f.startsWith("body.customer"));
       if (aboutDetails && !onFirstPage) backToDetails();
     } finally {
       setSubmitting(false);
@@ -253,9 +252,6 @@ export default function PublicFormPage({
         {onFirstPage && (
           <section className="rounded-lg bg-card text-card-foreground border border-border shadow-sm p-5 flex flex-col gap-3">
             <h2 className="text-sm font-medium text-foreground">Your details</h2>
-            <p className="text-xs text-muted-foreground">
-              If you&apos;ve submitted a form here before, use the same details.
-            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <LabeledInput
                 label="Email"
