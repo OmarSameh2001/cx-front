@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import AnswerField from "@/components/form/answer/answer-field";
+import { UploadScope } from "@/components/form/answer/upload-context";
 import type { FormFieldRead } from "@/dto/form/form";
 import type { PublicForm, PublicFormField } from "@/dto/public/public";
 import { PublicService } from "@/services/public/public";
@@ -288,14 +289,16 @@ export default function PublicFormPage({
 
         {/* Enter in a lone input would otherwise submit natively and reload */}
         <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
-          <PublicFormFields
-            form={form}
-            answers={answers}
-            disabled={submitting}
-            onAnswer={updateAnswer}
-            onlySectionId={paged ? pager.current?.id : undefined}
-            startNumber={pager.questionsBefore}
-          />
+          <UploadScope value={{ kind: "public", token }}>
+            <PublicFormFields
+              form={form}
+              answers={answers}
+              disabled={submitting}
+              onAnswer={updateAnswer}
+              onlySectionId={paged ? pager.current?.id : undefined}
+              startNumber={pager.questionsBefore}
+            />
+          </UploadScope>
         </form>
 
         <div className="flex flex-wrap items-center gap-2 pb-10">

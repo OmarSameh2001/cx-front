@@ -9,6 +9,8 @@ import type {
   SubmissionDetailField,
 } from "@/dto/submission/submission";
 import { showErrorToast } from "@/utils/toaster/toaster";
+import FileAnswerView from "@/components/file/file-answer-view";
+import { isFileAnswer } from "@/dto/file/file";
 
 const submissionService = new SubmissionService();
 
@@ -150,10 +152,14 @@ function FieldReveal({
       <p className="text-sm font-medium text-foreground">
         {idx + 1}. {field.question ?? `Question ${idx + 1}`}
       </p>
-      <p className="text-xs text-muted-foreground">
-        Your answer:{" "}
-        <span className="text-foreground">{renderAnswer(answer)}</span>
-      </p>
+      {field.type === "file" && isFileAnswer(answer) ? (
+        <FileAnswerView answer={answer} />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Your answer:{" "}
+          <span className="text-foreground">{renderAnswer(answer)}</span>
+        </p>
+      )}
       {field.right_answer != null && (
         <p className="text-xs text-muted-foreground">
           {field.type === "text" ? "Reference answer" : "Correct answer"}:{" "}
@@ -176,6 +182,7 @@ function FieldReveal({
 
 function renderAnswer(v: unknown): string {
   if (v == null) return "—";
+  if (isFileAnswer(v)) return v.name;
   if (Array.isArray(v)) return v.join(", ");
   return String(v);
 }

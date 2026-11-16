@@ -234,7 +234,7 @@ function FieldBody({
     case "email":
       return <EmailField />;
     case "file":
-      return <FileField />;
+      return <FileField field={field} onChange={onChange} locked={locked} />;
     case "scale":
       return <ScaleField field={field} onChange={onChange} />;
   }

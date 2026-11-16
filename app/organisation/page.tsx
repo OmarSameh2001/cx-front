@@ -7,6 +7,7 @@ import { OrganisationService } from "@/services/organisation/organisation";
 import { UnitService } from "@/services/unit/unit";
 import { useAuth } from "@/app/_providers/auth-provider";
 import { PermissionGate } from "@/components/protection/authorization";
+import LogoUpload from "@/components/file/logo-upload";
 import {
   showErrorToast,
   showSuccessToast,
@@ -77,6 +78,7 @@ export default function OrganisationPage() {
   const [editOrgOpen, setEditOrgOpen] = useState(false);
   const [editOrgId, setEditOrgId] = useState<number | null>(null);
   const [editOrgForm, setEditOrgForm] = useState<OrganisationUpdate>({});
+  const [editOrgLogo, setEditOrgLogo] = useState<string | null>(null);
   const [updatingOrg, setUpdatingOrg] = useState(false);
 
   // ── Units state ───────────────────────────────────────────────────────────
@@ -161,13 +163,21 @@ export default function OrganisationPage() {
   }
 
   function openEditOrg(id: number, row: OrganisationSummary) {
+    // the table row shows "—" for empty values; start from the loaded data
+    const org = orgs.find((o) => o.id === id) ?? row;
     setEditOrgId(id);
     setEditOrgForm({
-      name: row.name,
-      industry: row.industry ?? undefined,
-      subscription_end: row.subscription_end ?? undefined,
+      name: org.name,
+      industry: org.industry ?? undefined,
+      subscription_end: org.subscription_end ?? undefined,
     });
+    setEditOrgLogo(null);
     setEditOrgOpen(true);
+    // the list has no logo: load it for the upload preview
+    orgService
+      .getById(id)
+      .then((org) => setEditOrgLogo(org.logo_thumb ?? org.logo))
+      .catch(() => {});
   }
 
   async function handleUpdateOrg() {
@@ -475,6 +485,23 @@ export default function OrganisationPage() {
             onCancel={() => setEditOrgOpen(false)}
             submitting={updatingOrg}
             submitLabel="Save"
+            logo={
+              editOrgId !== null && (
+                <LogoUpload
+                  organisationId={editOrgId}
+                  currentUrl={editOrgLogo}
+                  disabled={updatingOrg}
+                  onChange={(fileId) =>
+                    setEditOrgForm((prev) => ({
+                      ...prev,
+                      logo_file_id: fileId,
+                      // removing also clears an older logo given as a URL
+                      ...(fileId === null ? { logo: null } : {}),
+                    }))
+                  }
+                />
+              )
+            }
           />
         </Modal>
       )}
@@ -631,6 +658,7 @@ function OrgForm({
   onCancel,
   submitting,
   submitLabel,
+  logo,
 }: {
   values: OrganisationCreate | OrganisationUpdate;
   onChange: (v: any) => void;
@@ -638,6 +666,8 @@ function OrgForm({
   onCancel: () => void;
   submitting: boolean;
   submitLabel: string;
+  // the logo upload, when editing an existing organisation
+  logo?: React.ReactNode;
 }) {
   const v = values as Record<string, any>;
   function set(field: string, value: unknown) {
@@ -647,6 +677,11 @@ function OrgForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {logo && (
+          <Field label="Logo" className="sm:col-span-2">
+            {logo}
+          </Field>
+        )}
         <Field label="Name *" className="sm:col-span-2">
           <input
             type="text"

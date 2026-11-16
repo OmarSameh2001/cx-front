@@ -11,6 +11,7 @@ import type {
   SubmissionRead,
 } from "@/dto/submission/submission";
 import AnswerField from "@/components/form/answer/answer-field";
+import { UploadScope } from "@/components/form/answer/upload-context";
 import {
   showConfirmToast,
   showErrorToast,
@@ -393,14 +394,16 @@ export default function ExamPage({
 
         {/* Enter in a lone input would otherwise submit natively and reload */}
         <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
-          <FormFields
-            form={form}
-            answers={answers}
-            disabled={expired || submitting}
-            onAnswer={updateAnswer}
-            onlySectionId={paged ? pager.current?.id : undefined}
-            startNumber={pager.questionsBefore}
-          />
+          <UploadScope value={{ kind: "employee", formId: Number(formId) }}>
+            <FormFields
+              form={form}
+              answers={answers}
+              disabled={expired || submitting}
+              onAnswer={updateAnswer}
+              onlySectionId={paged ? pager.current?.id : undefined}
+              startNumber={pager.questionsBefore}
+            />
+          </UploadScope>
         </form>
 
         <div className="flex flex-wrap items-center gap-2 pb-10">

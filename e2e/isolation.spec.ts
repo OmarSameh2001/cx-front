@@ -82,6 +82,9 @@ async function listing(path: string, aIds: (number | string)[]) {
 }
 
 test.beforeAll(async () => {
+  // ~20 setup calls against a remote database: give the hook the same 5 min
+  // as the tests (the file-level setTimeout doesn't cover hooks)
+  test.setTimeout(5 * 60_000);
   fx = createIsolationFixture();
   A = await signedIn(fx.A.email);
   B = await signedIn(fx.B.email);

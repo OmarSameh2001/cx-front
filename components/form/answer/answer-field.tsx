@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormFieldRead } from "@/dto/form/form";
+import FileAnswerInput from "./file-answer-input";
 
 interface Props {
   field: FormFieldRead;
@@ -153,17 +154,8 @@ export default function AnswerField({ field, value, onChange, disabled }: Props)
       );
     }
     case "file":
-      return (
-        <input
-          type="file"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            onChange(f ? f.name : "");
-          }}
-          disabled={disabled}
-          className={inputCls}
-        />
-      );
+      // uploads the file; the answer is {file_id, name, content_type, size}
+      return <FileAnswerInput fieldId={field.id} value={value} onChange={onChange} disabled={disabled} />;
     default:
       return (
         <input
