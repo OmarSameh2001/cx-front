@@ -2,9 +2,10 @@ import { expect, test as setup } from "@playwright/test";
 
 import { PASSWORD, USERS } from "./users";
 
-// `next dev` compiles each route on its first visit, which takes 15s+ per
-// route on a slow drive. Parallel tests hitting different cold routes at once
-// can time out, so compile them here, one at a time, before any test runs.
+// Opens each route the tests use once, one at a time, before any test runs.
+// Against the production build (playwright.config.ts) they're already
+// compiled, so this is a quick check that each one renders; it also keeps a
+// run against `next dev` from timing out on cold routes.
 const ROUTES = ["/", "/organisation", "/roles", "/form/0/submissions", "/public/form/warm-up"];
 
 setup("compile the routes the tests use", async ({ page }) => {

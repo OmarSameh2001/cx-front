@@ -120,9 +120,14 @@ test.describe("employee", () => {
 
     const stored = await (await admin.get(`/forms/${form.id}`)).json();
     expect(stored.fields[0].options.sort()).toEqual(["keep_original=true", "max_mb=2", "types=application/pdf"]);
-    const limits = await (await admin.get(`/files/limits/question?form_id=${form.id}&field_id=${stored.fields[0].id}`)).json();
+    const limitsUrl = `/files/limits/question?form_id=${form.id}&field_id=${stored.fields[0].id}`;
+    // saved to the draft (E1.5): respondents keep the published limits until it's activated
+    expect((await (await admin.get(limitsUrl)).json()).max_mb).toBe(10);
+    expect((await admin.post(`/forms/${form.id}/activate`)).status()).toBe(200);
+    const limits = await (await admin.get(limitsUrl)).json();
     expect(limits.max_mb).toBe(2);
     expect(limits.image.keep_original).toBe(true);
+    await admin.post(`/forms/${form.id}/deactivate`);
     await admin.delete(`/forms/${form.id}`); // no responses, so it can go
   });
 });

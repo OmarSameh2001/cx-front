@@ -1,10 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests. Run with `npm run e2e` (or `npm run e2e:ui` for the UI mode).
-// Both servers are started automatically, or reused if already running:
-//   - frontend: `npm run dev` on :3000
-//   - backend:  `python scripts.py dev` in ../cx-api on :8000, against the
-//               DATABASE_URL in cx-api/.env (seeded with `db:seed`)
+// Both servers are started automatically:
+//   - frontend: a production build (`next build` + `next start`) on :3000,
+//               built fresh on every run so the tests always see the current
+//               code. Not `next dev`: on this machine's hard disk it compiles
+//               each page for minutes and times the tests out. Stop any
+//               `npm run dev` on :3000 first, or the run can't start.
+//   - backend:  `python scripts.py dev` in ../cx-api on :8000 (reused if
+//               already running), against the DATABASE_URL in cx-api/.env
+//               (seeded with `db:seed`)
 const PORT = 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -46,13 +51,11 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "npm run dev",
-      // Probe /login rather than / — the landing page is heavy and its first
-      // dev compile can take a long time on this drive.
+      command: `npm run build && npm run start -- -p ${PORT}`,
       url: `${BASE_URL}/login`,
-      // Reuse an already running `npm run dev` locally; always start fresh in CI.
-      reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
+      // never reuse: a server left running would serve an old build
+      reuseExistingServer: false,
+      timeout: 300_000,
       stdout: "pipe",
     },
   ],
